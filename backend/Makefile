@@ -9,7 +9,7 @@
 
 # This Makefile only works with GNU Make.
 
-PYTHON = python3.11
+PYTHON = python3.12
 
 # Where everything lives
 site_python := /usr/bin/env $(PYTHON)
