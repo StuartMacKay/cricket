@@ -8,7 +8,7 @@ mypy
 pre-commit
 
 pytest
+pytest-cov
 pytest-django
 pytest-factoryboy
 pytest-freezegun
-pytest-cov

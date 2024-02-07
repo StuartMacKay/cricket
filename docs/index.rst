@@ -5,7 +5,6 @@ Django Project Templates
     :maxdepth: 1
     :caption: How Tos
 
-    howtos/rename-the-project
     howtos/using-virtualenv
     howtos/using-docker
 

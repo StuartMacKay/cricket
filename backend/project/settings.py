@@ -3,6 +3,7 @@ Django settings
 https://docs.djangoproject.com/en/4.2/topics/settings/
 
 """
+
 import os
 import socket
 
@@ -17,7 +18,6 @@ import environ  # type: ignore
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(PROJECT_DIR)
 ROOT_DIR = os.path.dirname(BACKEND_DIR)
-FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
 
 # ###############
 #   ENVIRONMENT
@@ -47,7 +47,6 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "django.contrib.sites",
     "django.contrib.staticfiles",
     "django.contrib.sitemaps",
     "django_celery_beat",
@@ -65,7 +64,6 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.contrib.sites.middleware.CurrentSiteMiddleware",
 ]
 
 if DJANGO_ENV == "development" and DEBUG:
@@ -226,7 +224,6 @@ STATICFILES_FINDERS = [
 ]
 
 STATICFILES_DIRS = [
-    os.path.join(FRONTEND_DIR, "dist"),
     os.path.join(PROJECT_DIR, "static"),
 ]
 

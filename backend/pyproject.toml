@@ -54,7 +54,7 @@ FAIL_INVALID_TEMPLATE_VARS = true
 addopts = "--strict-markers"
 
 testpaths = [
-    "project"
+    "tests"
 ]
 
 filterwarnings = [
