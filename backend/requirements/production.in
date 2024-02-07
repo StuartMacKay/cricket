@@ -9,6 +9,7 @@ django-watchman
 gunicorn
 ipython
 psycopg2-binary
+pydantic
 pymemcache
 python-dateutil
 python-json-logger
