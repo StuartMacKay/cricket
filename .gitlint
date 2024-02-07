@@ -1,0 +1,6 @@
+[general]
+
+# Enforce the use of the types used by Angular
+contrib=contrib-title-conventional-commits
+
+ignore=body-is-missing
