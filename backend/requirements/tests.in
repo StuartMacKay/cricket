@@ -5,10 +5,11 @@ flake8
 isort
 mypy
 
-pre-commit
+filetype
 
 pytest
 pytest-cov
 pytest-django
 pytest-factoryboy
 pytest-freezegun
+pytest-httpserver

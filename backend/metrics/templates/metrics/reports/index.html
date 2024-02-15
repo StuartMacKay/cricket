@@ -1,0 +1,167 @@
+{% load i18n l10n %}
+<html lang="en">
+<head>
+  <title>Snapshot Report</title>
+  <style>
+    body { font-size: 0.9em; }
+
+   *:not(pre):not(code):not(.font-monospace) {
+      font-family: Ubuntu, sans-serif!important;
+    }
+
+    @page {
+        size: a4 portrait;
+        margin: 15mm 15mm 15mm 15mm;
+        counter-increment: page;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    caption {
+      caption-side: top;
+      text-align: left;
+      padding-bottom: 10px;
+    }
+
+    .page-break { page-break-after: always; }
+
+    table.summary th {
+      text-align: left;
+      padding-right: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>{% trans "Site Report" %}</h1>
+
+  <table class="summary mb-4">
+    <tbody>
+      <tr>
+        <th>{% trans "Date:" %}</th>
+        <td>{{ date }}</td>
+      </tr>
+      <tr>
+        <th>{% trans "Time:" %}</th>
+        <td>{{ time }}</td>
+      </tr>
+      <tr>
+        <th>{% trans "URL:" %}</th>
+        <td>{{ url }}</td>
+      </tr>
+      <tr>
+        <th>{% trans "Categories:" %}</th>
+        <td>{{ categories|join:", " }}</td>
+      </tr>
+      <tr>
+        <th>{% trans "Platform:" %}</th>
+        <td>{{ platform }}</td>
+      </tr>
+      <tr>
+        <th>{% trans "Audited:" %}</th>
+        <td>{% blocktranslate %}{{ pages }} pages{% endblocktranslate %}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="page-break"></div>
+
+  <h2 class="mb-4">{% trans "Summary" %}</h2>
+
+  {% if performance_ratings_table %}{{ performance_ratings_table|safe }}{% endif %}
+  {% if accessibility_ratings_table %}{{ accessibility_ratings_table|safe }}{% endif %}
+  {% if best_practices_ratings_table %}{{ best_practices_ratings_table|safe }}{% endif %}
+  {% if seo_ratings_table %}{{ seo_ratings_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  <h2 class="mb-4">{% trans "Performance" %}</h2>
+
+  {% if performance_ratings_table %}{{ performance_ratings_table|safe }}{% endif %}
+  {% if performance_score_graph %}{{ performance_score_graph|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if performance_score_urls_table %}{{ performance_score_urls_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  <h3 class="mb-4">{% trans "Largest Contentful Paint" %}</h3>
+
+  {% if largest_contentful_paint_ratings_table %}{{ largest_contentful_paint_ratings_table|safe }}{% endif %}
+  {% if largest_contentful_paint_score_graph %}{{ largest_contentful_paint_score_graph|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if largest_contentful_paint_score_urls_table %}{{ largest_contentful_paint_score_urls_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  <h3 class="mb-4">{% trans "Total Blocking Time" %}</h3>
+
+  {% if total_blocking_time_ratings_table %}{{ total_blocking_time_ratings_table|safe }}{% endif %}
+  {% if total_blocking_time_score_graph %}{{ total_blocking_time_score_graph|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if total_blocking_time_score_urls_table %}{{ total_blocking_time_score_urls_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  <h3 class="mb-4">{% trans "Cumulative Layout Shift" %}</h3>
+
+  {% if cumulative_layout_shift_ratings_table %}{{ cumulative_layout_shift_ratings_table|safe }}{% endif %}
+  {% if cumulative_layout_shift_score_graph %}{{ cumulative_layout_shift_score_graph|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if cumulative_layout_shift_score_urls_table %}{{ cumulative_layout_shift_score_urls_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  <h2 class="mb-4">{% trans "Accessibility" %}</h2>
+
+  {% if accessibility_ratings_table %}{{ accessibility_ratings_table|safe }}{% endif %}
+  {% if accessibility_score_graph %}{{ accessibility_score_graph|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if accessibility_score_urls_table %}{{ accessibility_score_urls_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if accessibility_audits_checklist %}{{ accessibility_audits_checklist|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  <h2 class="mb-4">{% trans "Best Practices" %}</h2>
+
+  {% if best_practices_ratings_table %}{{ best_practices_ratings_table|safe }}{% endif %}
+  {% if best_practices_score_graph %}{{ best_practices_score_graph|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if best_practices_score_urls_table %}{{ best_practices_score_urls_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if best_practices_audits_checklist %}{{ best_practices_audits_checklist|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  <h2 class="mb-4">{% trans "SEO" %}</h2>
+
+  {% if seo_ratings_table %}{{ seo_ratings_table|safe }}{% endif %}
+  {% if seo_score_graph %}{{ seo_score_graph|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if seo_score_urls_table %}{{ seo_score_urls_table|safe }}{% endif %}
+
+  <div class="page-break"></div>
+
+  {% if seo_audits_checklist %}{{ seo_audits_checklist|safe }}{% endif %}
+
+</body>
+</htmL>

@@ -18,6 +18,7 @@ import environ  # type: ignore
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(PROJECT_DIR)
 ROOT_DIR = os.path.dirname(BACKEND_DIR)
+NODE_DIR = os.path.join(ROOT_DIR, "node")
 
 # ###############
 #   ENVIRONMENT
@@ -51,7 +52,9 @@ INSTALLED_APPS = [
     "django.contrib.sitemaps",
     "django_celery_beat",
     "django_extensions",
+    "django_celery_results",
     "watchman",
+    "metrics",
 ]
 
 MIDDLEWARE = [

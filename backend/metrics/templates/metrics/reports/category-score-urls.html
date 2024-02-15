@@ -1,0 +1,22 @@
+    {% load i18n %}
+    <p>
+      {% blocktranslate %}
+        URLs with the lowest Lighthouse scores in the <strong>{{ category }}</strong> category.
+      {% endblocktranslate %}
+    </p>
+    <table class="table table-bordered table-sm">
+      <thead>
+      <tr>
+        <th class="text-center" scope="col">{% trans "URL" %}</th>
+        <th class="text-center" scope="col">{% trans "Score" %}</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for url, score in values %}
+        <tr>
+          <td class="text-start small">{{ url }}</td>
+          <td class="text-end small">{{ score }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>

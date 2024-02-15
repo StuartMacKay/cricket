@@ -1,0 +1,29 @@
+{% load i18n %}
+<p>
+  Total number of pages where the Lighthouse score for the <strong>{{ audit }}</strong>
+  audit is poor (0 - 49), needs improvement (50 - 89), or good (90 - 100):
+</p>
+
+<table class="table table-bordered table-sm">
+  <thead>
+  <tr>
+  <tr>
+    <th class="text-center" scope="col">
+      <small class="text-muted">0 - 49</small>
+    </th>
+    <th class="text-center" scope="col">
+      <small class="text-muted">50 - 89</small>
+    </th>
+    <th class="text-center" scope="col">
+      <small class="text-muted">90 - 100</small>
+    </th>
+  </tr>
+  </thead>
+  <tbody>
+    <tr>
+      {% for score in scores %}
+        <td class="text-end">{{ score }}</td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>

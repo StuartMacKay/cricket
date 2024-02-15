@@ -1,0 +1,14 @@
+{
+  "name": "django-lighthouse",
+  "version": "0.0.0",
+  "description": "A Django site for running lighthouse reports",
+  "main": "src/lighthouse.js",
+  "author": "Stuart MacKay.",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "chrome-launcher": "^1.1.0",
+    "fs": "^0.0.1-security",
+    "lighthouse": "^11.4.0"
+  }
+}

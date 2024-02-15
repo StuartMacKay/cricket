@@ -1,0 +1,22 @@
+    {% load i18n %}
+    <p>
+      {% blocktranslate %}
+        <strong>{{ category }}</strong> audits.
+      {% endblocktranslate %}
+    </p>
+    <table class="table table-bordered table-sm">
+      <thead>
+      <tr>
+        <th class="text-center" scope="col">{% trans "Audit" %}</th>
+        <th class="text-center" scope="col">{% trans "Score" %}</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for audit, failed in values %}
+        <tr>
+          <td class="text-start small">{{ audit }}</td>
+          <td class="text-end small">{% if failed %}&#x274C;{% else %}&#x2705;{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
