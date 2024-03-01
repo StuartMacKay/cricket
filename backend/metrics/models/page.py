@@ -136,7 +136,7 @@ class Page(TimeStampedModel, models.Model):
                 LIGHTHOUSE_SCRIPT,
                 self.url,
                 "--quiet",
-                "--cli-flags-path=%s" % self.snapshot.site.config_file.path,
+                "--cli-flags-path=%s" % self.snapshot.data["config_file"],
             ],
             capture_output=True,
         )

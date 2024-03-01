@@ -78,7 +78,7 @@ def test_site_snapshot(caplog, httpserver, urls, sitemap, page):
 
     site = SiteFactory(
         sitemap_url="http:localhost:8000/sitemap.xml",
-        config_file__data=b'{"formFactor": "desktop"}',
+        config={"formFactor": "desktop"},
     )
 
     # Generate the site snapshot and publish the report

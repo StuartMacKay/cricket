@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import logging
 import os
+import tempfile
 import zlib
 from typing import List, Union
 
@@ -32,10 +33,6 @@ def validate_crontab(value):
 
 def sitemap_path(instance, filename):
     return os.path.join("sitemaps", instance.slug, filename)
-
-
-def config_path(instance, filename):
-    return os.path.join("configs", instance.slug, filename)
 
 
 class SiteQuerySet(models.QuerySet):
@@ -116,14 +113,10 @@ class Site(TimeStampedModel, models.Model):
         blank=True,
     )
 
-    config_file = models.FileField(
-        verbose_name=_("Config file"),
-        help_text=_(
-            "A JSON file containing command-line arguments for running Lighthouse"
-        ),
-        upload_to=config_path,
-        null=True,
-        blank=True,
+    config = models.JSONField(
+        verbose_name=_("Config"),
+        help_text=_("The command-line arguments for running Lighthouse in JSON format"),
+        default=dict,
     )
 
     crontab = models.CharField(
@@ -228,10 +221,25 @@ class Site(TimeStampedModel, models.Model):
         url = HttpUrl(self.sitemap_url) if self.sitemap_url else ""
         yield from self._load_sitemap(url or self.sitemap_file.path)
 
+    def create_config_file(self) -> str:
+        tmpdir = tempfile.gettempdir()
+        metrics_dir = os.path.join(tmpdir, "metrics-snapshot")
+        if not os.path.exists(metrics_dir):
+            os.makedirs(metrics_dir)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            prefix=self.slug,
+            suffix=".json",
+            dir=metrics_dir,
+            delete=False,
+        ) as fp:
+            json.dump(self.config, fp)
+            return fp.name
+
     def create_snapshot(self) -> Snapshot:
         snapshot = Snapshot(site=self)
-        with self.config_file.open() as fp:
-            snapshot.data["config"] = json.load(fp)
+        snapshot.data["config"] = self.config
+        snapshot.data["config_file"] = self.create_config_file()
         snapshot.save()
         self.snapped = timezone.now()
         self.save()

@@ -1,5 +1,6 @@
 import io
 import os
+import pathlib
 
 from django.conf import settings
 from django.core.files import File
@@ -168,10 +169,15 @@ class Snapshot(TimeStampedModel, models.Model):
         self._collect_category_metadata(page.data["categories"])
         self._collect_audit_metadata(page.data["audits"])
 
+    def _delete_config_file(self):
+        path = pathlib.Path(self.data.pop("config_file"))
+        path.unlink()
+
     def collect_metrics(self):
         self._collect_metadata()
         self._collect_category_metrics()
         self._collect_audit_metrics()
+        self._delete_config_file()
         self.save()
 
     def category_ratings_table(self, category: str) -> str:

@@ -1,6 +1,9 @@
 from django.contrib import admin, messages
 from django.contrib.admin import register
+from django.db import models
 from django.utils.translation import gettext_lazy as _
+
+from django_json_widget.widgets import JSONEditorWidget
 
 from ..models import Site
 from ..tasks import take_snapshot
@@ -13,6 +16,10 @@ class SiteAdmin(admin.ModelAdmin):
     search_fields = ("name", "url")
     readonly_fields = ("created", "modified")
     actions = ["create_snapshot"]
+
+    formfield_overrides = {
+        models.JSONField: {"widget": JSONEditorWidget},
+    }
 
     def create_snapshot(self, request, queryset):
         for site in queryset:

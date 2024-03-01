@@ -10,5 +10,4 @@ class SiteFactory(factory.django.DjangoModelFactory):
     name = factory.Faker("domain_name")
     url = factory.Faker("domain_name")
     sitemap_file = factory.django.FileField(data=b"")
-    config_file = factory.django.FileField(data=b"")
     enabled = True
