@@ -1,4 +1,7 @@
 from django.contrib import admin
+from django.db import models
+
+from django_json_widget.widgets import JSONEditorWidget
 
 from ..models import Page
 
@@ -18,10 +21,11 @@ class PageAdmin(admin.ModelAdmin):
         "modified",
     )
 
-    def has_add_permission(self, request, obj=None):
-        return False
+    formfield_overrides = {
+        models.JSONField: {"widget": JSONEditorWidget},
+    }
 
-    def has_change_permission(self, request, obj=None):
+    def has_add_permission(self, request, obj=None):
         return False
 
     def has_delete_permission(self, request, obj=None):

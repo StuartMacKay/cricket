@@ -5,6 +5,7 @@ django-celery-beat
 django-celery-results
 django-environ
 django-extensions
+django_json_widget
 django-spaceless-templates
 django-storages
 django-watchman

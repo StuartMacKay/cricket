@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "django_extensions",
     "django_celery_results",
+    "django_json_widget",
     "watchman",
     "metrics",
 ]
