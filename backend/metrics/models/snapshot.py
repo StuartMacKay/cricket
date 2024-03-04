@@ -58,6 +58,9 @@ class Snapshot(TimeStampedModel, models.Model):
         default=dict,
     )
 
+    def __str__(self):
+        return "{} ({})".format(self.site.name, self.created.strftime("%Y-%m-%d"))
+
     def create_pages(self):
         for url in self.site.get_urls():
             Page.objects.get_or_create(url=url, audited=False, snapshot=self)
