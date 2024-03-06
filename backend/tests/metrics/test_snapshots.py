@@ -101,10 +101,15 @@ def test_site_snapshot(caplog, httpserver, urls, sitemap, page):
     # Data was extracted for each page that was successfully audited
     for page in pages.filter(audited=True):
         for key, category in page.data["categories"].items():
-            assert "rating" in category
+            assert "id" in category
+            assert "title" in category
+            assert "type" in category
             assert "score" in category
-        for key, audit in page.data["audits"].items():
-            assert "rating" in audit
+
+        for audit in page.data["audits"].values():
+            assert "id" in audit
+            assert "title" in audit
+            assert "type" in audit
             assert "score" in audit
 
     # Data was not extracted from pages where the audit failed
@@ -116,19 +121,22 @@ def test_site_snapshot(caplog, httpserver, urls, sitemap, page):
     assert "formFactor" in snapshot.data["config"]
 
     # The snapshot contains metrics extracted the page data
-    for key, category in snapshot.data["categories"].items():
+    for category in snapshot.data["categories"].values():
         assert "id" in category
         assert "title" in category
         assert "ratings" in category
-        assert "scores" in category
+        assert "quantiles" in category
         assert "urls" in category
 
-    for key, audit in snapshot.data["audits"].items():
+    for audit in snapshot.data["audits"].values():
         assert "id" in audit
         assert "title" in audit
-        assert "ratings" in audit
-        assert "scores" in audit
-        assert "urls" in audit
+        if audit["category"] == "performance":
+            assert "ratings" in audit
+            assert "quantiles" in audit
+            assert "urls" in audit
+        else:
+            assert "scores" in audit
 
     # The snapshot contains the PDF report
     path = snapshot.report.path

@@ -80,51 +80,64 @@ class Page(TimeStampedModel, models.Model):
             return json.load(fp)
 
     def _collect_audit_metrics(self, data: dict):
-        metrics: dict[str, dict] = {}
-        for key, audit in data.items():
-            score = audit.get("score") or 0
-            score = int(score * 100)
+        audits: dict[str, dict] = {}
 
-            if audit.get("numericUnit") == "millisecond":
-                value = round(data[key]["numericValue"])
-            elif audit.get("numericUnit") == "unitless":
-                value = round(data[key]["numericValue"], 3)
-            else:
-                value = audit.get("numericValue")
-
-            if audit["scoreDisplayMode"] == "binary":
-                audit_type = "binary"
-            else:
-                audit_type = "numeric"
-
-            metrics[key] = {
+        for key, audit in data["audits"].items():
+            audits[key] = {
                 "id": audit["id"],
                 "title": audit["title"],
-                "score": score,
-                "rating": Rating.get_rating(score),
-                "type": audit_type,
-                "units": audit.get("numericUnit"),
-                "value": value,
             }
 
-        self.data["audits"] = metrics
+        for key, category in data["categories"].items():
+            for ref in category["auditRefs"]:
+                audit = audits[ref["id"]]
+                audit["category"] = key
+                audit["weight"] = ref.get("weight", 0)
+                audit["type"] = "numeric" if key == "performance" else "binary"
+
+        for key, audit in data["audits"].items():
+            if (score := audit["score"]) is None:
+                audits[key]["score"] = 0
+                audits[key]["type"] = None
+            else:
+                if audits[key]["type"] == "numeric":
+                    value = audit.get("numericValue")
+                    units = audit.get("numericUnit")
+
+                    if units == "millisecond":
+                        value = round(value)
+                    elif units == "unitless":
+                        value = round(value, 3)
+
+                    score = int(score * 100)
+                    audits[key]["score"] = score
+                    audits[key]["value"] = value
+                    audits[key]["units"] = units
+                    audits[key]["quantile"] = 19 if score == 100 else int(score / 5)
+                    audits[key]["rating"] = Rating.get_rating(score)
+                else:
+                    audits[key]["score"] = score
+
+        self.data["audits"] = audits
 
     def _collect_category_metrics(self, data: dict):
-        metrics: dict[str, dict[str, int]] = {}
-        for key, category in data.items():
+        metrics: dict[str, dict] = {}
+        for key, category in data["categories"].items():
             score = int(category["score"] * 100)
             metrics[key] = {
                 "id": category["id"],
                 "title": category["title"],
+                "type": "numeric",
                 "score": score,
                 "rating": Rating.get_rating(score),
+                "quantile": 19 if score == 100 else int(score / 5),
                 "audits": [audit["id"] for audit in category["auditRefs"]],
             }
         self.data["categories"] = metrics
 
     def collect_metrics(self, data):
-        self._collect_category_metrics(data["categories"]),
-        self._collect_audit_metrics(data["audits"]),
+        self._collect_category_metrics(data)
+        self._collect_audit_metrics(data)
         self.save()
 
     def audit(self):

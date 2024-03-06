@@ -15,7 +15,6 @@ from django_extensions.db.models import TimeStampedModel
 from weasyprint import CSS, HTML
 
 from .page import Page
-from .rating import Rating
 
 STYLESHEET_PATH = os.path.join(
     settings.BACKEND_DIR, "metrics/static/css/bootstrap.min.css"
@@ -71,45 +70,58 @@ class Snapshot(TimeStampedModel, models.Model):
     def get_number_of_pages(self) -> int:
         return int(self.pages.all().count())
 
-    def get_ratings(self, prefix: str, key: str) -> list[int]:
-        ratings: list[int] = []
+    def get_binary_scores(self, prefix: str, key: str) -> list[int]:
+        scores: list[int] = [0, 0]
         with connection.cursor() as cursor:
-            for rating in Rating.values():
-                cursor.execute(
-                    f"select count(*) "
-                    f"from metrics_page "
-                    f"where audited=TRUE "
-                    f"and snapshot_id={self.pk} "
-                    f"and (data->'{prefix}'->'{key}'->'rating')::int={rating} "
-                    f"and data->'{prefix}'->'{key}'->'rating' is not null"
-                )
-                ratings.append(cursor.fetchall()[0][0])
+            cursor.execute(
+                f"select count(*), "
+                f"(data->'{prefix}'->'{key}'->'score')::int as score "
+                f"from metrics_page "
+                f"where audited=TRUE "
+                f"and snapshot_id={self.pk} "
+                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
+                f"group by score "
+            )
+            result = cursor.fetchall()
+            for count, index in result:
+                scores[index] += count
+
+        return scores
+
+    def get_ratings(self, prefix: str, key: str) -> list[int]:
+        ratings: list[int] = [0, 0, 0]
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"select count(*), "
+                f"(data->'{prefix}'->'{key}'->'rating')::int as rating "
+                f"from metrics_page "
+                f"where audited=TRUE "
+                f"and snapshot_id={self.pk} "
+                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
+                f"group by rating"
+            )
+            result = cursor.fetchall()
+            for count, index in result:
+                ratings[index] += count
+
         return ratings
 
-    def get_scores(self, prefix: str, key: str, groups: int) -> list[int]:
-        scores: list[int] = [0] * groups
-        interval = int(100 / groups)
+    def get_quantiles(self, prefix: str, key: str) -> list[int]:
+        scores: list[int] = [0] * 20
         with connection.cursor() as cursor:
             cursor.execute(
                 f"select "
                 f"count(*), "
-                f"((data->'{prefix}'->'{key}'->'score')::int/{interval})::int as score "
+                f"(data->'{prefix}'->'{key}'->'quantile')::int as quantile "
                 f"from metrics_page "
                 f"where audited=TRUE "
                 f"and snapshot_id={self.pk} "
-                f"and data->'{prefix}'->'{key}'->'score' is not null "
-                f"group by score"
+                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
+                f"group by quantile"
             )
             result = cursor.fetchall()
-
-        # Scores are in the range 0..100, so the number of intervals
-        # will be one more than the number of groups. As a result,
-        # scores of 100 are added to the last group.
-
-        for count, index in result:
-            if index == groups:
-                index = groups - 1
-            scores[index] += count
+            for count, index in result:
+                scores[index] += count
 
         return scores
 
@@ -120,7 +132,7 @@ class Snapshot(TimeStampedModel, models.Model):
                 f"from metrics_page "
                 f"where audited=TRUE "
                 f"and snapshot_id={self.pk} "
-                f"and data->'{prefix}'->'{key}'->'score' is not null "
+                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
                 f"order by score "
                 f"limit {limit}"
             )
@@ -134,22 +146,20 @@ class Snapshot(TimeStampedModel, models.Model):
             results[key] = {
                 "id": audit["id"],
                 "title": audit["title"],
+                "category": audit["category"],
+                "weight": audit["weight"],
                 "type": audit["type"],
             }
         self.data["audits"] = results
 
     def _collect_audit_metrics(self):
-        for category in self.data["categories"].values():
-            for key in category["audits"]:
-                # viewport is lists in the auditRefs for the performance category
-                # however it is an SEO audit.
-                groups = (
-                    20 if category["id"] == "performance" and key != "viewport" else 2
-                )
-                audit = self.data["audits"][key]
+        for key, audit in self.data["audits"].items():
+            if audit["category"] == "performance":
                 audit["ratings"] = self.get_ratings("audits", key)
-                audit["scores"] = self.get_scores("audits", key, groups)
+                audit["quantiles"] = self.get_quantiles("audits", key)
                 audit["urls"] = self.get_urls("audits", key, 20)
+            else:
+                audit["scores"] = self.get_binary_scores("audits", key)
 
     def _collect_category_metadata(self, data):
         results = {}
@@ -157,6 +167,7 @@ class Snapshot(TimeStampedModel, models.Model):
             results[key] = {
                 "id": category["id"],
                 "title": category["title"],
+                "type": category["type"],
                 "audits": category["audits"].copy(),
             }
         self.data["categories"] = results
@@ -164,7 +175,7 @@ class Snapshot(TimeStampedModel, models.Model):
     def _collect_category_metrics(self):
         for key, category in self.data["categories"].items():
             category["ratings"] = self.get_ratings("categories", key)
-            category["scores"] = self.get_scores("categories", key, 20)
+            category["quantiles"] = self.get_quantiles("categories", key)
             category["urls"] = self.get_urls("categories", key, 20)
 
     def _collect_metadata(self):
@@ -173,8 +184,10 @@ class Snapshot(TimeStampedModel, models.Model):
         self._collect_audit_metadata(page.data["audits"])
 
     def _delete_config_file(self):
-        path = pathlib.Path(self.data.pop("config_file"))
-        path.unlink()
+        if "config_file" in self.data:
+            path = pathlib.Path(self.data.pop("config_file"))
+            if path.exists() and path.is_file():
+                path.unlink()
 
     def collect_metrics(self):
         self._collect_metadata()
@@ -191,8 +204,8 @@ class Snapshot(TimeStampedModel, models.Model):
         template = "metrics/reports/category-ratings.html"
         return render_to_string(template, context)
 
-    def get_category_score_graph(self, category: str) -> str:
-        y = self.data["categories"][category]["scores"]
+    def get_category_quantile_graph(self, category: str) -> str:
+        y = self.data["categories"][category]["quantiles"]
         interval = int(100 / len(y))
         x = [val for val in range(0, 100, interval)]
 
@@ -235,9 +248,8 @@ class Snapshot(TimeStampedModel, models.Model):
         return render_to_string(template, context)
 
     def get_audit_score_graph(self, audit: str) -> str:
-        y = self.data["audits"][audit]["scores"]
-        interval = int(100 / len(y))
-        x = [val for val in range(0, 100, interval)]
+        y = self.data["audits"][audit]["quantiles"]
+        x = [val for val in range(0, 100, 5)]
         fig = go.Figure(
             data=[go.Bar(x=x, y=y, showlegend=False, text=y)],
         )
@@ -247,7 +259,7 @@ class Snapshot(TimeStampedModel, models.Model):
             xaxis_title="Score",
             xaxis_title_font=dict(size=14),
             xaxis_rangemode="tozero",
-            xaxis_dtick=interval,
+            xaxis_dtick=5,
             yaxis_title="No. of Pages",
             yaxis_title_font=dict(size=14),
         )
@@ -272,7 +284,7 @@ class Snapshot(TimeStampedModel, models.Model):
         for audit in self.data["categories"][category]["audits"]:
             failed, passed = self.data["audits"][audit]["scores"]
             title = self.data["audits"][audit]["title"]
-            values.append((title, failed))
+            values.append((title, failed, passed))
 
         context = {
             "category": self.data["categories"][category]["title"],
@@ -299,13 +311,15 @@ class Snapshot(TimeStampedModel, models.Model):
 
         for category in self.data["categories"].keys():
             key = f"{category}_score_graph".replace("-", "_")
-            context[key] = self.get_category_score_graph(category)
+            context[key] = self.get_category_quantile_graph(category)
 
         for category in self.data["categories"].keys():
             key = f"{category}_score_urls_table".replace("-", "_")
             context[key] = self.category_score_urls_table(category)
 
         for audit in self.data["categories"]["performance"]["audits"]:
+            if audit == "viewport":
+                continue
             key = f"{audit}_ratings_table".replace("-", "_")
             context[key] = self.audit_ratings_table(audit)
             key = f"{audit}_score_graph".replace("-", "_")

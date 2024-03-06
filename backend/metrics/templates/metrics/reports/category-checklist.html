@@ -8,14 +8,18 @@
       <thead>
       <tr>
         <th class="text-center" scope="col">{% trans "Audit" %}</th>
-        <th class="text-center" scope="col">{% trans "Score" %}</th>
+        <th class="text-center" scope="col">{% trans "Failed" %}</th>
+        <th class="text-center" scope="col">{% trans "Passed" %}</th>
+        <th class="text-center" scope="col">{% trans "Total" %}</th>
       </tr>
       </thead>
       <tbody>
-      {% for audit, failed in values %}
+      {% for audit, failed, passed in values %}
         <tr>
           <td class="text-start small">{{ audit }}</td>
-          <td class="text-end small">{% if failed %}&#x274C;{% else %}&#x2705;{% endif %}</td>
+          <td class="text-end small">{{ failed }}</td>
+          <td class="text-end small">{{ passed }}</td>
+          <td class="text-end small">{{ failed|add:passed }}</td>
         </tr>
       {% endfor %}
       </tbody>
