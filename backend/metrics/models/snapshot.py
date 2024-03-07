@@ -133,6 +133,7 @@ class Snapshot(TimeStampedModel, models.Model):
                 f"where audited=TRUE "
                 f"and snapshot_id={self.pk} "
                 f"and data->'{prefix}'->'{key}'->'type' != 'null' "
+                f"and (data->'{prefix}'->'{key}'->'rating')::int < 2 "
                 f"order by score "
                 f"limit {limit}"
             )
