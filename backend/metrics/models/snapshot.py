@@ -284,8 +284,9 @@ class Snapshot(TimeStampedModel, models.Model):
 
         for audit in self.data["categories"][category]["audits"]:
             failed, passed = self.data["audits"][audit]["scores"]
-            title = self.data["audits"][audit]["title"]
-            values.append((title, failed, passed))
+            if failed or passed:
+                title = self.data["audits"][audit]["title"]
+                values.append((title, failed, passed))
 
         context = {
             "category": self.data["categories"][category]["title"],
