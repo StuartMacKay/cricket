@@ -17,7 +17,7 @@ from weasyprint import CSS, HTML
 from .page import Page
 
 STYLESHEET_PATH = os.path.join(
-    settings.BACKEND_DIR, "metrics/static/css/bootstrap.min.css"
+    settings.BACKEND_DIR, "project/static/css/bootstrap.min.css"
 )
 
 
