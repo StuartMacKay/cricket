@@ -296,13 +296,18 @@ class Snapshot(TimeStampedModel, models.Model):
         return render_to_string(template, context)
 
     def get_context(self):
+        categories = self.data["categories"]
+
         context = {
             "date": date(self.created, "jS F Y"),
             "time": date(self.created, "g:i a"),
             "url": self.site.url,
             "pages": self.get_number_of_pages(),
             "categories": [
-                category["title"] for category in self.data["categories"].values()
+                categories["performance"],
+                categories["accessibility"],
+                categories["best-practices"],
+                categories["seo"],
             ],
             "platform": self.data["config"]["formFactor"],
         }

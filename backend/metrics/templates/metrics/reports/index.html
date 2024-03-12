@@ -52,7 +52,7 @@
       </tr>
       <tr>
         <th>{% trans "Categories:" %}</th>
-        <td>{{ categories|join:", " }}</td>
+        <td>{% for category in categories %}{{ category.title }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
       </tr>
       <tr>
         <th>{% trans "Platform:" %}</th>
