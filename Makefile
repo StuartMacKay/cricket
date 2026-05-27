@@ -73,6 +73,15 @@ build:
 logs:
 	docker compose logs -f
 
+.PHONY: ps
+ps:
+	docker compose ps
+
+.PHONY: restart
+restart:
+	@echo "Restarting service (use svc=<name> to target one, e.g. make restart svc=django)..."
+	docker compose restart $(svc)
+
 # ################
 #   Dependencies
 # ################
@@ -95,6 +104,19 @@ migrate:
 	@echo "Run any database migrations..."
 	$(exec) python manage.py migrate
 
+.PHONY: makemigrations
+makemigrations:
+	@echo "Create new database migrations..."
+	$(exec) python manage.py makemigrations $(app)
+
+.PHONY: createsuperuser
+createsuperuser:
+	$(exec) python manage.py createsuperuser
+
+.PHONY: shell
+shell:
+	$(exec) python manage.py shell_plus
+
 .PHONY: manage
 manage:
 	$(exec) python manage.py $(cmd)
@@ -108,10 +130,23 @@ lint:
 	@echo "Check the code for lint violations..."
 	$(exec) ruff check $(src_dirs)
 
+.PHONY: fix-lint
+fix-lint:
+	@echo "Fix lint violations automatically..."
+	$(exec) ruff check --fix $(src_dirs)
+
 .PHONY: format
 format:
 	@echo "Check the code for formatting violations..."
 	$(exec) ruff format --check $(src_dirs)
+
+.PHONY: fix-format
+fix-format:
+	@echo "Apply formatting..."
+	$(exec) ruff format $(src_dirs)
+
+.PHONY: fix
+fix: fix-lint fix-format
 
 .PHONY: mypy
 mypy:
