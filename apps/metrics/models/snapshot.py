@@ -182,10 +182,13 @@ class Snapshot(TimeStampedModel, models.Model):
             category["quantiles"] = self.get_quantiles("categories", key)
             category["urls"] = self.get_urls("categories", key, 20)
 
-    def _collect_metadata(self):
+    def _collect_metadata(self) -> bool:
         page: Page = self.pages.filter(audited=True).first()
+        if page is None:
+            return False
         self._collect_category_metadata(page.data["categories"])
         self._collect_audit_metadata(page.data["audits"])
+        return True
 
     def _delete_config_file(self):
         if "config_file" in self.data:
@@ -194,9 +197,9 @@ class Snapshot(TimeStampedModel, models.Model):
                 path.unlink()
 
     def collect_metrics(self):
-        self._collect_metadata()
-        self._collect_category_metrics()
-        self._collect_audit_metrics()
+        if self._collect_metadata():
+            self._collect_category_metrics()
+            self._collect_audit_metrics()
         self._delete_config_file()
         self.save()
 
