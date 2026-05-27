@@ -14,10 +14,10 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def urls():
+def urls(httpserver):
     return [
-        "http://127.0.0.1:8000/",
-        "http://127.0.0.1:8000/about/",
+        httpserver.url_for("/"),
+        httpserver.url_for("/about/"),
     ]
 
 
@@ -77,7 +77,7 @@ def test_site_snapshot(caplog, httpserver, urls, sitemap, page):
     )
 
     site = SiteFactory(
-        sitemap_url="http://127.0.0.1:8000/sitemap.xml",
+        sitemap_url=httpserver.url_for("/sitemap.xml"),
         config={"formFactor": "desktop"},
     )
 

@@ -20,6 +20,3 @@ def media_storage(settings, tmpdir):
     settings.MEDIA_ROOT = tmpdir.strpath
 
 
-@pytest.fixture(scope="session")
-def httpserver_listen_address():
-    return ("127.0.0.1", 8000)

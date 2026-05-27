@@ -20,7 +20,7 @@ from . import Rating
 from .page import Page
 
 STYLESHEET_PATH = os.path.join(
-    settings.BACKEND_DIR, "project/static/css/bootstrap.min.css"
+    settings.BACKEND_DIR, "assets/css/bootstrap.min.css"
 )
 
 
@@ -295,6 +295,7 @@ class Snapshot(TimeStampedModel, models.Model):
                 values.append((title, failed, passed))
 
         context = {
+            "object": self,
             "category": self.data["categories"][category]["title"],
             "values": values,
         }

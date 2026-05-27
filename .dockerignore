@@ -1,12 +1,12 @@
 .*
 !.env
-!.flake8
 
 **/*.pyc
 **/*.pyo
 **/__pycache__
 
 celerybeat-schedule
+node/node_modules
 
 Dockerfile
 docker-compose.yml

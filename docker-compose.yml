@@ -21,6 +21,7 @@ x-app: &default-app
     BROKER_URL: "${BROKER_URL-redis://redis:6379/1}"
     CACHE_URL: "${CACHE_URL-redis://redis:6379/0}"
     DATABASE_URL: "${DATABASE_URL-postgres://postgres:postgres@postgres:5432/postgres}"
+  init: true
   restart: "${DOCKER_RESTART_POLICY:-no}"
   tty: true
 

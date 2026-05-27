@@ -14,7 +14,9 @@ import fs from 'fs';
 import lighthouse from 'lighthouse';
 import * as chromeLauncher from 'chrome-launcher';
 
-const chrome = await chromeLauncher.launch({chromeFlags: ['--headless']});
+const chrome = await chromeLauncher.launch({
+    chromeFlags: ['--headless', '--no-sandbox', '--disable-dev-shm-usage'],
+});
 const options = {logLevel: 'silent', output: 'json', port: chrome.port};
 const runnerResult = await lighthouse(process.argv[2], options);
 console.log(runnerResult.report);
