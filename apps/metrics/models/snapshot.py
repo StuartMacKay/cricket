@@ -364,8 +364,15 @@ class Snapshot(TimeStampedModel, models.Model):
         return context
 
     def publish_report(self):
-        template = get_template("metrics/reports/index.html")
-        html: str = template.render(self.get_context())
+        import kaleido
+
+        kaleido.start_sync_server()
+        try:
+            template = get_template("metrics/reports/index.html")
+            html: str = template.render(self.get_context())
+        finally:
+            kaleido.stop_sync_server()
+
         document: HTML = HTML(string=html)
         pdf: bytes = document.write_pdf(stylesheets=[CSS(STYLESHEET_PATH)])
         fp = io.BytesIO(pdf)
