@@ -1,3 +1,66 @@
+[project]
+name = "django-lighthouse"
+version = "2023.01.0"
+requires-python = ">=3.12"
+dependencies = [
+    "Django>=4.2,<4.3",
+    "celery",
+    "croniter",
+    "django-celery-beat",
+    "django-celery-results",
+    "django-environ",
+    "django-extensions",
+    "django_json_widget",
+    "django-spaceless-templates",
+    "django-storages",
+    "django-watchman",
+    "gunicorn",
+    "ipython",
+    "kaleido",
+    "lxml",
+    "pandas",
+    "plotly",
+    "psycopg2-binary",
+    "pydantic",
+    "pymemcache",
+    "python-dateutil",
+    "python-json-logger",
+    "requests",
+    "sentry-sdk",
+    "weasyprint",
+    "whitenoise[brotli]",
+]
+
+[dependency-groups]
+tests = [
+    "black",
+    "filetype",
+    "flake8",
+    "isort",
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "pytest-django",
+    "pytest-factoryboy",
+    "pytest-freezegun",
+    "pytest-httpserver",
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+dev = [
+    { include-group = "tests" },
+    { include-group = "docs" },
+    "bumpver",
+    "django-debug-toolbar",
+    "django-stubs",
+    "pre-commit",
+]
+
+[tool.uv]
+package = false
+
 [tool.black]
 line-length = 88
 target-version = [

@@ -1,4 +1,4 @@
-FROM python:3.11.5-slim-bookworm AS app
+FROM python:3.12-slim-bookworm AS app
 LABEL maintainer="Stuart MacKay <smackay@flagstonesoftware.com>"
 
 WORKDIR /app
@@ -17,14 +17,16 @@ RUN apt-get update \
     && useradd --create-home --no-log-init -u "${UID}" -g "${GID}" python \
     && chown python:python -R /app
 
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 USER python
 
-# Install requirements
+# Install dependencies (leverages Docker layer caching — only reruns when
+# pyproject.toml or uv.lock change)
+COPY --chown=python:python pyproject.toml uv.lock ./
 
-COPY --chown=python:python requirements ./backend/requirements
-COPY --chown=python:python bin ./backend/bin
-
-RUN chmod 0755 backend/bin/* && backend/bin/install-requirements
+RUN uv sync --frozen --no-install-project --no-group dev --no-group docs --no-group tests
 
 # Set up the runtime environment
 
@@ -33,9 +35,10 @@ ENV DEBUG="${DEBUG}" \
     LC_ALL="C.UTF-8" \
     PYTHONUNBUFFERED="true" \
     PYTHONPATH="." \
-    PATH="${PATH}:/home/python/.local/bin" \
+    PATH="${PATH}:/app/.venv/bin" \
     TERM="xterm-256color" \
-    USER="python"
+    USER="python" \
+    VIRTUAL_ENV="/app/.venv"
 
 # Copy over all the backend files and the static assets generated
 # by the frontend tools/frameworks.
@@ -49,4 +52,4 @@ ENTRYPOINT ["/app/backend/bin/django-entrypoint"]
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-c", "/app/backend/project/gunicorn.py", "config.wsgi"]
+CMD ["gunicorn", "-c", "/app/backend/config/gunicorn.py", "config.wsgi"]

@@ -2,6 +2,4 @@
 
 set -e
 
-pip install --user --upgrade setuptools pip wheel \
-  && pip install --user pip-tools \
-  && pip install --no-warn-script-location --no-cache-dir --user -r requirements/${DJANGO_ENV-development}.txt
+uv sync --frozen --no-group dev --no-group docs --no-group tests
