@@ -15,7 +15,7 @@ ARG GID=1000
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
         libcairo2 libpango-1.0-0 libpangoft2-1.0-0 \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs chromium \
     && rm -rf /var/lib/apt/lists/* /usr/share/doc /usr/share/man \
     && apt-get clean \

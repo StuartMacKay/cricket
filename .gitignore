@@ -18,6 +18,7 @@ __pycache__/
 !.gitkeep
 !.gitlint
 !.pre-commit-config.yaml
+!.nvmrc
 !.python-version
 !.readthedocs.yml
 
