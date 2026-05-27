@@ -13,7 +13,7 @@ ARG UID=1000
 ARG GID=1000
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl libcairo2 libpango-1.0 \
+    && apt-get install -y --no-install-recommends curl libcairo2 libpango-1.0-0 libpangoft2-1.0-0 \
     && rm -rf /var/lib/apt/lists/* /usr/share/doc /usr/share/man \
     && apt-get clean \
     && groupadd -g "${GID}" python \
