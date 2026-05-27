@@ -28,6 +28,8 @@ __pycache__/
 /logs
 /static
 
+celerybeat-schedule
+
 coverage
 
 # docker-compose.override.yml is committed — it is the canonical dev setup.
