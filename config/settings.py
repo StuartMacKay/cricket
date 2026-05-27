@@ -21,7 +21,7 @@ BACKEND_DIR = os.path.dirname(PROJECT_DIR)
 ROOT_DIR = os.path.dirname(BACKEND_DIR)
 NODE_DIR = os.path.join(ROOT_DIR, "node")
 
-sys.path.insert(0, os.path.join(ROOT_DIR, "apps"))
+sys.path.insert(0, os.path.join(BACKEND_DIR, "apps"))
 
 # ###############
 #   ENVIRONMENT
