@@ -15,7 +15,7 @@ src_dir = $(root_dir)/project
 
 django = uv run python $(root_dir)/manage.py
 flake8 = uv run flake8
-black = uv run black
+ruff = uv run ruff
 isort = uv run isort
 mypy = uv run mypy
 pytest = uv run pytest
@@ -102,7 +102,7 @@ isort:
 .PHONY: black
 black:
 	@echo "Check the code for formatting rules violations..."
-	$(black) --check $(src_dir)
+	$(ruff) format --check $(src_dir)
 
 .PHONY: mypy
 mypy:

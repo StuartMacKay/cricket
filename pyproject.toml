@@ -33,11 +33,11 @@ dependencies = [
 
 [dependency-groups]
 tests = [
-    "black",
     "filetype",
     "flake8",
     "isort",
     "mypy",
+    "ruff",
     "pytest",
     "pytest-cov",
     "pytest-django",
@@ -61,12 +61,12 @@ dev = [
 [tool.uv]
 package = false
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = [
-    'py312'
-]
-exclude = ".*/migrations/.*"
+target-version = "py312"
+
+[tool.ruff.format]
+exclude = ["*/migrations/*"]
 
 [tool.coverage.run]
 branch = true
