@@ -1,0 +1,78 @@
+TODO report: add identifiers uuid4
+
+TODO report: list of 20 slowest urls has a link to a detail page on a site
+    That way we can publish more information than is sensible to put in the
+    report.
+
+TODO report: replace hard-wired column names in tables and graph labels
+    use the labels from ratings, metrics
+
+TODO Minimum viable product
+    - PDF Report
+    - Sent by email
+    - Process top 100 pages
+    - Desktop & Mobile
+    - Histogram of page scores for each category
+    - List of issues ordered by frequency
+    The list of issues MUST be actionable
+    Get it ready by April
+
+TODO Add interaction-to-next-paint audit
+    # Core Web Vital metric. New in March 2024. See https://web.dev/blog/inp-cwv
+    INTERACTION_TO_NEXT_PAINT = "interaction-to-next-paint"
+    Replaces largest-contentful-paint. When switching metrics maintain the
+    old one for six months so there is a transition period allowing
+    changes to be monitored until the switchover is complete.
+
+TODO deployment: need to install latest version of node
+    https://github.com/nodesource/distributions#ubuntu-versions
+
+TODO report: Add description, contact fields to report metadata?
+
+TODO report: show timings graph for metrics?
+
+TODO report: colour scores and timings graphs by rating?
+
+TODO audit: add a site crawler for webtel
+    Added as management command and admin action
+    Saved to sitemap file
+
+TODO models: * add an Event model to record actions?
+    Event
+    created
+    type
+    description
+    data
+    content_type
+    object
+    user
+
+TODO site: request a sample report
+    enter an email address and a domain name and send a report created by
+    crawling the first 10 or 20 pages
+
+TODO celery: Is flower useful?
+
+TODO celery: Add open telemetry? or is it too soon?
+
+TODO Marketing / sales
+    Target audience: project managers, product managers
+    Service: provide clear actionable reports to improve a site's
+    standing and performance.
+    How: by handling the tasks that either often get neglected or people
+    are simply too busy to do.
+    Analogy: Software is often compared to building construction. You
+    might assemble a team comprising of brick-layer, plasterer, painter,
+    electrician, plumber and of course and interior designer.
+    For a minimum viable product they build a bedsit. Looking to add new
+    features you then add separate bathroom, a bedroom, etc, etc. Each
+    time your team is focused on making things better. Except, now the
+    paint on the outside walls are flaking and there's a leak in the part
+    of the, now, house where the bedsit was originally. If resources and
+    money were plentiful you could add more workers to take care of these
+    extra tasks while your team focussed on making the house
+    better. Instead you could hand these tasks off to specialist who can
+    identify and deal with these issues, leaving you to focus on the
+    important parts.
+
+TODO use BeautifulSoup to extra info / perform more audits?
