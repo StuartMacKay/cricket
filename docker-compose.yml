@@ -9,7 +9,7 @@ x-app: &default-app
       - "DJANGO_ENV=${DJANGO_ENV:-development}"
   depends_on:
     postgres:
-      condition: "service_started"
+      condition: "service_healthy"
       required: false
     redis:
       condition: "service_started"
@@ -30,6 +30,11 @@ services:
       POSTGRES_USER: "${POSTGRES_USER-postgres}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD-postgres}"
       POSTGRES_DB: "${POSTGRES_DB-postgres}"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-U", "${POSTGRES_USER:-postgres}"]
+      interval: "5s"
+      timeout: "3s"
+      retries: 10
     image: "postgres:17"
     restart: "${DOCKER_RESTART_POLICY:-no}"
     volumes:
