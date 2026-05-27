@@ -26,11 +26,6 @@ x-app: &default-app
 
 services:
   postgres:
-    deploy:
-      resources:
-        limits:
-          cpus: "${DOCKER_POSTGRES_CPUS:-0}"
-          memory: "${DOCKER_POSTGRES_MEMORY:-0}"
     environment:
       POSTGRES_USER: "${POSTGRES_USER-postgres}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD-postgres}"
@@ -41,11 +36,6 @@ services:
       - "pgdata:/var/lib/postgresql/data"
 
   redis:
-    deploy:
-      resources:
-        limits:
-          cpus: "${DOCKER_REDIS_CPUS:-0}"
-          memory: "${DOCKER_REDIS_MEMORY:-0}"
     image: "redis:7.2"
     restart: "${DOCKER_RESTART_POLICY:-no}"
     volumes:
@@ -53,11 +43,6 @@ services:
 
   django:
     <<: *default-app
-    deploy:
-      resources:
-        limits:
-          cpus: "${DOCKER_DJANGO_CPUS:-0}"
-          memory: "${DOCKER_DJANGO_MEMORY:-0}"
     healthcheck:
       test: "${DOCKER_DJANGO_HEALTHCHECK_TEST:-curl localhost:8000/watchman/ping}"
       interval: "60s"
@@ -77,11 +62,6 @@ services:
       django:
         condition: "service_started"
         required: false
-    deploy:
-      resources:
-        limits:
-          cpus: "${DOCKER_CELERY_BEAT_CPUS:-0}"
-          memory: "${DOCKER_CELERY_BEAT_MEMORY:-0}"
     entrypoint: []
 
   celery-worker:
@@ -91,11 +71,6 @@ services:
       django:
         condition: "service_started"
         required: false
-    deploy:
-      resources:
-        limits:
-          cpus: "${DOCKER_CELERY_WORKER_CPUS:-0}"
-          memory: "${DOCKER_CELERY_WORKER_MEMORY:-0}"
     entrypoint: []
     volumes:
       - "media:/app/media"
