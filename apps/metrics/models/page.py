@@ -91,9 +91,14 @@ class Page(TimeStampedModel, models.Model):
         for key, category in data["categories"].items():
             for ref in category["auditRefs"]:
                 audit = audits[ref["id"]]
-                audit["category"] = key
-                audit["weight"] = ref.get("weight", 0)
-                audit["type"] = "numeric" if key == "performance" else "binary"
+                # An audit can appear in multiple categories (e.g. Lighthouse 13
+                # added agentic-browsing which shares audits with performance).
+                # Only assign category/type once; first assignment wins, which
+                # preserves the primary category from the Lighthouse report.
+                if "category" not in audit:
+                    audit["category"] = key
+                    audit["weight"] = ref.get("weight", 0)
+                    audit["type"] = "numeric" if key == "performance" else "binary"
 
         for key, audit in data["audits"].items():
             if (score := audit["score"]) is None:
