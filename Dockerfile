@@ -27,7 +27,7 @@ USER python
 ENV LC_ALL="C.UTF-8" \
     PYTHONUNBUFFERED="true" \
     PYTHONPATH="/app/backend" \
-    PATH="${PATH}:/app/.venv/bin" \
+    PATH="/app/.venv/bin:${PATH}" \
     VIRTUAL_ENV="/app/.venv" \
     TERM="xterm-256color" \
     USER="python"
