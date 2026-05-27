@@ -1,4 +1,4 @@
-x-app: &default-app
+Updx-app: &default-app
   build:
     context: "."
     target: "app"
@@ -38,7 +38,7 @@ services:
       POSTGRES_USER: "${POSTGRES_USER-postgres}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD-postgres}"
       POSTGRES_DB: "${POSTGRES_DB-postgres}"
-    image: "postgres:15"
+    image: "postgres:17"
     restart: "${DOCKER_RESTART_POLICY:-no}"
     volumes:
       - "pgdata:/var/lib/postgresql/data"
