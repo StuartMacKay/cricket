@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
     "Django>=6.0,<7.0",
     "celery",
+    "flower",
     "croniter",
     "django-celery-beat",
     "django-celery-results",

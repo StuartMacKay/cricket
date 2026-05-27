@@ -37,12 +37,16 @@ services:
       timeout: "3s"
       retries: 10
     image: "postgres:17"
+    ports:
+      - "${DOCKER_POSTGRES_PORT_FORWARD-127.0.0.1:5432}:5432"
     restart: "${DOCKER_RESTART_POLICY:-no}"
     volumes:
       - "pgdata:/var/lib/postgresql/data"
 
   redis:
     image: "redis:7.2"
+    ports:
+      - "${DOCKER_REDIS_PORT_FORWARD-127.0.0.1:6379}:6379"
     restart: "${DOCKER_RESTART_POLICY:-no}"
     volumes:
       - "redisdata:/data"
@@ -63,7 +67,7 @@ services:
 
   celery-beat:
     <<: *default-app
-    command: celery beat --loglevel "${CELERY_LOG_LEVEL:-debug}"
+    command: celery -A config beat --loglevel "${CELERY_LOG_LEVEL:-debug}"
     depends_on:
       django:
         condition: "service_started"
@@ -72,7 +76,7 @@ services:
 
   celery-worker:
     <<: *default-app
-    command: celery worker --loglevel "${CELERY_LOG_LEVEL:-debug}"
+    command: celery -A config worker --loglevel "${CELERY_LOG_LEVEL:-debug}" -Q sites,pages
     depends_on:
       django:
         condition: "service_started"
@@ -80,6 +84,17 @@ services:
     entrypoint: []
     volumes:
       - "media:/app/media"
+
+  flower:
+    <<: *default-app
+    command: celery -A config flower
+    depends_on:
+      django:
+        condition: "service_started"
+        required: false
+    entrypoint: []
+    ports:
+      - "${DOCKER_FLOWER_PORT_FORWARD-127.0.0.1:5555}:5555"
 
 volumes:
   pgdata:

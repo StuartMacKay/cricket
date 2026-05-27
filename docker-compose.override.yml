@@ -28,3 +28,9 @@ services:
       target: dev
     volumes:
       - .:/app/backend
+
+  flower:
+    build:
+      target: dev
+    volumes:
+      - .:/app/backend
