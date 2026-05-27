@@ -1,5 +1,3 @@
-LABEL maintainer="Stuart MacKay <smackay@flagstonesoftware.com>"
-
 # ##########
 #   System
 # ##########
@@ -69,6 +67,8 @@ WORKDIR /app/backend
 # dependencies are present.
 
 FROM dependencies AS app
+
+LABEL maintainer="Stuart MacKay <smackay@fastmail.com>"
 
 ARG DEBUG="false"
 ENV DEBUG="${DEBUG}"
