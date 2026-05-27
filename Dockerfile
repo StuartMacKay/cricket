@@ -1,10 +1,15 @@
-FROM python:3.12-slim-bookworm AS app
 LABEL maintainer="Stuart MacKay <smackay@flagstonesoftware.com>"
 
-WORKDIR /app
+# ##########
+#   System
+# ##########
+#
+# Base image with OS-level dependencies, uv, and a non-root user.
+# Shared by all subsequent stages.
 
-# Install any os-level dependencies, clean out any unused files
-# and create a user so nothing runs as root.
+FROM python:3.12-slim-bookworm AS system
+
+WORKDIR /app
 
 ARG UID=1000
 ARG GID=1000
@@ -17,39 +22,63 @@ RUN apt-get update \
     && useradd --create-home --no-log-init -u "${UID}" -g "${GID}" python \
     && chown python:python -R /app
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.9.18 /uv /usr/local/bin/uv
 
 USER python
 
-# Install dependencies (leverages Docker layer caching — only reruns when
-# pyproject.toml or uv.lock change)
+ENV LC_ALL="C.UTF-8" \
+    PYTHONUNBUFFERED="true" \
+    PYTHONPATH="/app/backend" \
+    PATH="${PATH}:/app/.venv/bin" \
+    VIRTUAL_ENV="/app/.venv" \
+    TERM="xterm-256color" \
+    USER="python"
+
+# ################
+#   Dependencies
+# ################
+#
+# Install production Python dependencies. This layer is cached as long as
+# pyproject.toml and uv.lock are unchanged, even across app rebuilds.
+
+FROM system AS dependencies
+
 COPY --chown=python:python pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-install-project --no-group dev --no-group docs --no-group tests
 
-# Set up the runtime environment
+# ###############
+#   Development
+# ###############
+#
+# Extends the dependencies stage with dev/test tools. Source code is NOT
+# copied here — it is mounted as a volume via docker-compose.override.yml
+# so changes are reflected instantly without rebuilding.
+
+FROM dependencies AS dev
+
+RUN uv sync --frozen --no-install-project
+
+WORKDIR /app/backend
+
+# ##############
+#   Production
+# ##############
+#
+# Final production image. Source code is baked in, only production
+# dependencies are present.
+
+FROM dependencies AS app
 
 ARG DEBUG="false"
-ENV DEBUG="${DEBUG}" \
-    LC_ALL="C.UTF-8" \
-    PYTHONUNBUFFERED="true" \
-    PYTHONPATH="." \
-    PATH="${PATH}:/app/.venv/bin" \
-    TERM="xterm-256color" \
-    USER="python" \
-    VIRTUAL_ENV="/app/.venv"
+ENV DEBUG="${DEBUG}"
 
-# Copy over all the backend files and the static assets generated
-# by the frontend tools/frameworks.
-COPY --chown=python:python . ./backend
-COPY --chown=python:python ../frontend/dist ./frontend/dist
+COPY --chown=python:python . /app/backend
 
-# Use entrypoint and cmd so the command can be overridden from
-# the command line.
+WORKDIR /app/backend
 
 ENTRYPOINT ["/app/backend/bin/django-entrypoint"]
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-c", "/app/backend/config/gunicorn.py", "config.wsgi"]
+CMD ["gunicorn", "-c", "config/gunicorn.py", "config.wsgi"]

@@ -1,0 +1,30 @@
+# docker-compose.override.yml — local development overrides.
+#
+# Docker Compose automatically merges this file with docker-compose.yml
+# when you run `docker compose up`, so no extra flags are needed.
+#
+# What this does:
+#   - Builds the `dev` image stage (includes dev/test dependencies)
+#   - Mounts your local source into the container so code changes are
+#     reflected immediately without rebuilding the image
+#   - Replaces gunicorn with Django's dev server (auto-reloads on save)
+
+services:
+  django:
+    build:
+      target: dev
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app/backend
+
+  celery-worker:
+    build:
+      target: dev
+    volumes:
+      - .:/app/backend
+
+  celery-beat:
+    build:
+      target: dev
+    volumes:
+      - .:/app/backend

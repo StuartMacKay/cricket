@@ -1,6 +1,6 @@
 """
 Django settings
-https://docs.djangoproject.com/en/4.2/topics/settings/
+https://docs.djangoproject.com/en/6.0/topics/settings/
 
 """
 
@@ -54,7 +54,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.sitemaps",
     "django_celery_beat",
-    "django_extensions",
     "django_celery_results",
     "django_json_widget",
     "watchman",
@@ -62,20 +61,21 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 if DJANGO_ENV == "development" and DEBUG:
     INSTALLED_APPS += [
         "debug_toolbar",
+        "django_extensions",
     ]
 
     MIDDLEWARE = [
@@ -107,7 +107,7 @@ WATCHMAN_TOKENS = env.str("DJANGO_WATCHMAN_TOKENS", None)
 #   DATABASE
 # ############
 
-DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 DATABASES = {
     "default": env.db_url(default="postgres://project:password@localhost:5432/project")
@@ -117,7 +117,12 @@ DATABASES = {
 #   CACHING
 # ###########
 
-CACHES = {"default": env.cache_url(default="pymemcache://localhost:11211")}
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env.str("CACHE_URL", default="redis://localhost:6379/0"),
+    }
+}
 
 # ############
 #   SECURITY
@@ -293,7 +298,7 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "json": {
-            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "()": "pythonjsonlogger.json.JsonFormatter",
             "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
         },
     },
@@ -361,4 +366,5 @@ if ADMIN_PATH[-1] != "/":
 #   DJANGO EXTENSIONS
 # #####################
 
-SHELL_PLUS = "ipython"
+if DJANGO_ENV == "development":
+    SHELL_PLUS = "ipython"

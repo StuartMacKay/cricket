@@ -1,4 +1,4 @@
-Updx-app: &default-app
+x-app: &default-app
   build:
     context: "."
     target: "app"
@@ -11,18 +11,15 @@ Updx-app: &default-app
     postgres:
       condition: "service_started"
       required: false
-    memcached:
-      condition: "service_started"
-      required: false
-    rabbitmq:
+    redis:
       condition: "service_started"
       required: false
   env_file:
     - ".env"
   environment:
     # Override the defaults in .env which are for natively installed services
-    BROKER_URL: "${BROKER_URL-amqp://guest:guest@rabbitmq:5672/}"
-    CACHE_URL: "${CACHE_URL-pymemcache://memcached:11211}"
+    BROKER_URL: "${BROKER_URL-redis://redis:6379/1}"
+    CACHE_URL: "${CACHE_URL-redis://redis:6379/0}"
     DATABASE_URL: "${DATABASE_URL-postgres://postgres:postgres@postgres:5432/postgres}"
   restart: "${DOCKER_RESTART_POLICY:-no}"
   tty: true
@@ -43,23 +40,16 @@ services:
     volumes:
       - "pgdata:/var/lib/postgresql/data"
 
-  memcached:
+  redis:
     deploy:
       resources:
         limits:
-          cpus: "${DOCKER_MEMCACHED_CPUS:-0}"
-          memory: "${DOCKER_MEMCACHED_MEMORY:-0}"
-    image: "memcached:latest"
+          cpus: "${DOCKER_REDIS_CPUS:-0}"
+          memory: "${DOCKER_REDIS_MEMORY:-0}"
+    image: "redis:7.2"
     restart: "${DOCKER_RESTART_POLICY:-no}"
-
-  rabbitmq:
-    deploy:
-      resources:
-        limits:
-          cpus: "${DOCKER_RABBITMQ_CPUS:-0}"
-          memory: "${DOCKER_RABBITMQ_MEMORY:-0}"
-    image: "rabbitmq:3.11.9-management"
-    restart: "${DOCKER_RESTART_POLICY:-no}"
+    volumes:
+      - "redisdata:/data"
 
   django:
     <<: *default-app
@@ -112,6 +102,8 @@ services:
 
 volumes:
   pgdata:
+    {}
+  redisdata:
     {}
   media:
     {}

@@ -16,13 +16,7 @@ class CeleryConfig:
     # be needed.
     worker_hijack_root_logger = False
 
-    # The default, unless it is overridden using an environment variable
-    # is to assume we are running the demo using a virtualenv and connect
-    # to a locally install instance of rabbitmq. When using containers,
-    # the broker url will be set to connect to the rabbitmq service.
-    broker_url = os.environ.get(
-        "BROKER_URL", "amqp://guest:guest@localhost:5672/project"
-    )
+    broker_url = os.environ.get("BROKER_URL", "redis://localhost:6379/1")
 
     # Store the results from the tasks in the database. They will be deleted
     # by celery after one day.
@@ -36,18 +30,8 @@ app.config_from_object(CeleryConfig)
 app.autodiscover_tasks()
 
 app.conf.task_queues = [
-    Queue(
-        "sites",
-        Exchange("sites"),
-        routing_key="sites",
-        queue_arguments={"x-max-priority": 10},
-    ),
-    Queue(
-        "pages",
-        Exchange("pages"),
-        routing_key="pages",
-        queue_arguments={"x-max-priority": 10},
-    ),
+    Queue("sites", Exchange("sites"), routing_key="sites"),
+    Queue("pages", Exchange("pages"), routing_key="pages"),
 ]
 
 app.conf.task_queue_max_priority = 10

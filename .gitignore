@@ -12,7 +12,6 @@ __pycache__/
 !.editorconfig
 !.env.example
 !.envrc
-!.flake8
 !.gitattributes
 !.github
 !.gitignore
@@ -31,4 +30,6 @@ __pycache__/
 
 coverage
 
-docker-compose.override.yml
+# docker-compose.override.yml is committed — it is the canonical dev setup.
+# For personal customisation, use docker-compose.local.yml and add it here:
+docker-compose.local.yml
