@@ -1,23 +1,25 @@
-x-vol-backend: &backend
-    "./backend:/app/backend"
-
-x-vol-dist: &dist
-    "./frontend/dist:/app/frontend/dist"
-
 services:
-  postgres:
-    ports:
-      - "${DOCKER_POSTGRES_PORT_FORWARD-127.0.0.1:5432}:5432"
-
-  rabbitmq:
-    ports:
-      - "${DOCKER_RABBITMQ_PORT_FORWARD-127.0.0.1:5672}:5672"
-
   django:
+    build:
+      target: dev
+    command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - *backend
-      - *dist
+      - .:/app
 
   celery-worker:
+    build:
+      target: dev
     volumes:
-      - *backend
+      - .:/app
+
+  celery-beat:
+    build:
+      target: dev
+    volumes:
+      - .:/app
+
+  flower:
+    build:
+      target: dev
+    volumes:
+      - .:/app
