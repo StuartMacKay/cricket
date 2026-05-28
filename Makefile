@@ -95,6 +95,32 @@ lock:
 	@echo "Update the lockfile..."
 	uv lock
 
+# ###########
+#   Version
+# ###########
+#
+# Version numbers follow semantic versioning (vMAJOR.MINOR.PATCH).
+# bumpver updates pyproject.toml, commits the change, and tags the commit.
+#
+# Usage:
+#   make bumpver             # increment patch (bug fixes: v0.1.0 → v0.1.1)
+#   make bumpver tag=minor   # increment minor (new features: v0.1.0 → v0.2.0)
+#   make bumpver tag=major   # increment major (breaking changes: v0.1.0 → v1.0.0)
+#   make bumpver dry=1       # preview changes without committing
+
+tag  ?= patch
+dry  ?=
+
+bumpver_flags = --$(tag)
+ifneq ($(dry),)
+bumpver_flags += --dry
+endif
+
+.PHONY: bumpver
+bumpver:
+	@echo "Bumping version ($(tag))$(if $(dry), [dry run],)..."
+	$(exec) bumpver update $(bumpver_flags)
+
 # ##########
 #   Django
 # ##########

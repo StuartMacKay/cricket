@@ -1,6 +1,6 @@
 [project]
 name = "django-lighthouse"
-version = "2023.01.0"
+version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "Django>=6.0,<7.0",
@@ -132,8 +132,8 @@ ignore_errors = true
 django_settings_module = "config.settings"
 
 [tool.bumpver]
-current_version = "v2023.01.0"
-version_pattern = "vYYYY.0M.INC0"
+current_version = "v0.0.0"
+version_pattern = "vMAJOR.MINOR.PATCH"
 commit = true
 commit_message = "Bump version to {new_version}"
 tag = true
@@ -142,9 +142,5 @@ push = true
 [tool.bumpver.file_patterns]
 "pyproject.toml" = [
     '^current_version = "{version}"$',
-]
-"../docs/conf.py" = [
-    '^copyright = "YYYY, Stuart MacKay"$',
-    '^version = "vYYYY.0M"$',
-    '^release = "{version}"$',
+    '^version = "MAJOR.MINOR.PATCH"$',
 ]
