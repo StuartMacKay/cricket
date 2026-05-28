@@ -8,6 +8,5 @@ class PageFactory(factory.django.DjangoModelFactory):
         model = Page
 
     url = factory.Faker("url")
-    name = factory.Faker("name")
-    enabled = True
+    audited = False
     snapshot = factory.SubFactory("tests.factories.SnapshotFactory")
