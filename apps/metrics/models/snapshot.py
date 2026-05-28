@@ -77,72 +77,69 @@ class Snapshot(TimeStampedModel, models.Model):
         scores: list[int] = [0, 0]
         with connection.cursor() as cursor:
             cursor.execute(
-                f"select count(*), "
-                f"(data->'{prefix}'->'{key}'->'score')::int as score "
-                f"from metrics_page "
-                f"where audited=TRUE "
-                f"and snapshot_id={self.pk} "
-                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
-                f"group by score "
+                "SELECT count(*), "
+                "  (data->%s->%s->'score')::int AS score "
+                "FROM metrics_page "
+                "WHERE audited = TRUE "
+                "  AND snapshot_id = %s "
+                "  AND data->%s->%s->'type' != 'null' "
+                "GROUP BY score",
+                [prefix, key, self.pk, prefix, key],
             )
-            result = cursor.fetchall()
-            for count, index in result:
+            for count, index in cursor.fetchall():
                 scores[index] += count
-
         return scores
 
     def get_ratings(self, prefix: str, key: str) -> list[int]:
         ratings: list[int] = [0, 0, 0]
         with connection.cursor() as cursor:
             cursor.execute(
-                f"select count(*), "
-                f"(data->'{prefix}'->'{key}'->'rating')::int as rating "
-                f"from metrics_page "
-                f"where audited=TRUE "
-                f"and snapshot_id={self.pk} "
-                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
-                f"group by rating"
+                "SELECT count(*), "
+                "  (data->%s->%s->'rating')::int AS rating "
+                "FROM metrics_page "
+                "WHERE audited = TRUE "
+                "  AND snapshot_id = %s "
+                "  AND data->%s->%s->'type' != 'null' "
+                "GROUP BY rating",
+                [prefix, key, self.pk, prefix, key],
             )
-            result = cursor.fetchall()
-            for count, index in result:
+            for count, index in cursor.fetchall():
                 ratings[index] += count
-
         return ratings
 
     def get_quantiles(self, prefix: str, key: str) -> list[int]:
         scores: list[int] = [0] * 20
         with connection.cursor() as cursor:
             cursor.execute(
-                f"select "
-                f"count(*), "
-                f"(data->'{prefix}'->'{key}'->'quantile')::int as quantile "
-                f"from metrics_page "
-                f"where audited=TRUE "
-                f"and snapshot_id={self.pk} "
-                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
-                f"group by quantile"
+                "SELECT count(*), "
+                "  (data->%s->%s->'quantile')::int AS quantile "
+                "FROM metrics_page "
+                "WHERE audited = TRUE "
+                "  AND snapshot_id = %s "
+                "  AND data->%s->%s->'type' != 'null' "
+                "GROUP BY quantile",
+                [prefix, key, self.pk, prefix, key],
             )
-            result = cursor.fetchall()
-            for count, index in result:
+            for count, index in cursor.fetchall():
                 scores[index] += count
-
         return scores
 
     def get_urls(self, prefix: str, key: str, limit: int) -> list[tuple[str, str, int]]:
         with connection.cursor() as cursor:
             cursor.execute(
-                f"select url, (data->'{prefix}'->'{key}'->'score')::int as score "
-                f"from metrics_page "
-                f"where audited=TRUE "
-                f"and snapshot_id={self.pk} "
-                f"and data->'{prefix}'->'{key}'->'type' != 'null' "
-                f"and (data->'{prefix}'->'{key}'->'rating')::int < 2 "
-                f"order by score "
-                f"limit {limit}"
+                "SELECT url, (data->%s->%s->'score')::int AS score "
+                "FROM metrics_page "
+                "WHERE audited = TRUE "
+                "  AND snapshot_id = %s "
+                "  AND data->%s->%s->'type' != 'null' "
+                "  AND (data->%s->%s->'rating')::int < 2 "
+                "ORDER BY score "
+                "LIMIT %s",
+                [prefix, key, self.pk, prefix, key, prefix, key, limit],
             )
             results = cursor.fetchall()
-            results.reverse()
-            return results
+        results.reverse()
+        return results
 
     def _collect_audit_metadata(self, data):
         results = {}
