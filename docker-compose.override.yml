@@ -11,6 +11,11 @@
 #
 # The virtualenv lives at /venv (outside /app) so it is never shadowed
 # by the source bind mount.
+#
+# media/ and static/ use host bind mounts so that generated files are
+# directly accessible on the host and are written by the same UID (1000)
+# as the container's python user — avoiding the root-owned named-volume
+# permission problem.
 
 services:
   django:
@@ -19,12 +24,15 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
+      - ./media:/app/media
+      - ./static:/app/static
 
   celery-worker:
     build:
       target: dev
     volumes:
       - .:/app
+      - ./media:/app/media
 
   celery-beat:
     build:
