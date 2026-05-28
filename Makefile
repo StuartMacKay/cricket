@@ -119,6 +119,11 @@ endif
 .PHONY: bumpver
 bumpver:
 	@echo "Bumping version ($(tag))$(if $(dry), [dry run],)..."
+	@if [ -z "$(dry)" ]; then \
+		NEW_VERSION=$$($(exec) bumpver update --$(tag) --dry 2>&1 | grep 'New Version' | awk '{print $$NF}'); \
+		python3 bin/update-changelog $$NEW_VERSION; \
+		git add CHANGELOG.rst; \
+	fi
 	$(exec) bumpver update $(bumpver_flags)
 
 # ##########
