@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 
 from django.conf import settings
 from django.core.files import File
@@ -53,6 +54,17 @@ class Page(TimeStampedModel, models.Model):
         upload_to=audit_report_path,
         verbose_name=_("Report"),
         help_text=_("The Lighthouse audit report for this Page"),
+        null=True,
+        blank=True,
+    )
+
+    html_report = models.FileField(
+        upload_to=audit_report_path,
+        verbose_name=_("HTML Report"),
+        help_text=_(
+            "The self-contained Lighthouse HTML report for this Page, "
+            "identical to Chrome's Lighthouse panel output"
+        ),
         null=True,
         blank=True,
     )
@@ -151,43 +163,58 @@ class Page(TimeStampedModel, models.Model):
         extra = {"url": self.url}
         log.info("Page audit started", extra=extra)
 
+        # Create a temporary file for Lighthouse to write the HTML report into.
+        # The file is deleted in the finally block once its content has been
+        # copied to storage (or the audit failed and there is nothing to keep).
+        html_fd, html_path = tempfile.mkstemp(suffix=".html")
+        os.close(html_fd)
+
         try:
-            result = subprocess.run(
-                [
-                    LIGHTHOUSE_SCRIPT,
-                    self.url,
-                    "--quiet",
-                    "--cli-flags-path=%s" % self.snapshot.data["config_file"],
-                ],
-                capture_output=True,
-                timeout=300,
-            )
-        except subprocess.TimeoutExpired:
-            log.error("Page audit timed out", extra=extra)
-            fp = io.BytesIO(b"Audit timed out after 300 seconds")
-            self.report.save("lighthouse.txt", File(fp), save=False)
-            self.audited = False
-            self.save()
-            return
-
-        if result.returncode == 0:
-            fp = io.BytesIO(result.stdout)
-            self.report.save("lighthouse.json", File(fp), save=False)
-
-            data = json.loads(result.stdout)
-
-            if "runtimeError" not in data and not data["runWarnings"]:
-                self.collect_metrics(data)
-                self.audited = True
-                log.info("Page was audited", extra=extra)
-            else:
+            try:
+                result = subprocess.run(
+                    [
+                        LIGHTHOUSE_SCRIPT,
+                        self.url,
+                        "--quiet",
+                        "--cli-flags-path=%s" % self.snapshot.data["config_file"],
+                        "--html-output-path=%s" % html_path,
+                    ],
+                    capture_output=True,
+                    timeout=300,
+                )
+            except subprocess.TimeoutExpired:
+                log.error("Page audit timed out", extra=extra)
+                fp = io.BytesIO(b"Audit timed out after 300 seconds")
+                self.report.save("lighthouse.txt", File(fp), save=False)
                 self.audited = False
-                log.info("Page was not audited", extra=extra)
-        else:
-            fp = io.BytesIO(result.stderr)
-            self.report.save("lighthouse.txt", File(fp), save=False)
+                self.save()
+                return
 
-            self.audited = False
-            log.error("Page was not audited", extra=extra)
+            if result.returncode == 0:
+                fp = io.BytesIO(result.stdout)
+                self.report.save("lighthouse.json", File(fp), save=False)
 
-        self.save()
+                # Save the self-contained HTML report before the temp file is
+                # removed by the finally block below.
+                with open(html_path, "rb") as html_fp:
+                    self.html_report.save("lighthouse.html", File(html_fp), save=False)
+
+                data = json.loads(result.stdout)
+
+                if "runtimeError" not in data and not data["runWarnings"]:
+                    self.collect_metrics(data)
+                    self.audited = True
+                    log.info("Page was audited", extra=extra)
+                else:
+                    self.audited = False
+                    log.info("Page was not audited", extra=extra)
+            else:
+                fp = io.BytesIO(result.stderr)
+                self.report.save("lighthouse.txt", File(fp), save=False)
+
+                self.audited = False
+                log.error("Page was not audited", extra=extra)
+
+            self.save()
+        finally:
+            os.unlink(html_path)

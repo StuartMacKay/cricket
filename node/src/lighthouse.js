@@ -3,9 +3,11 @@
 Generate a lighthouse report for a web page.
 
 Usage:
-    lighthouse.js <url> [--cli-flags-path=<path>]
+    lighthouse.js <url> [--cli-flags-path=<path>] [--html-output-path=<path>]
 
-The report, in JSON format, will be written to stdout.
+The JSON report is always written to stdout.  When --html-output-path is
+supplied the self-contained HTML report (identical to Chrome's Lighthouse
+panel output) is written to that file.
 
 The optional flags file is a JSON object whose keys are Lighthouse flag
 names.  The most commonly used flag is formFactor:
@@ -31,14 +33,21 @@ import * as chromeLauncher from 'chrome-launcher';
 
 const url = process.argv[2];
 
-// Parse an optional --cli-flags-path=<file> argument and read the JSON
-// contents as Lighthouse flags.
+// Parse optional arguments:
+//   --cli-flags-path=<file>   JSON file of Lighthouse flags
+//   --html-output-path=<file> path where the HTML report will be written
 let flags = {};
+let htmlOutputPath = null;
+
 for (const arg of process.argv.slice(3)) {
-    const match = arg.match(/^--cli-flags-path=(.+)$/);
-    if (match) {
-        flags = JSON.parse(fs.readFileSync(match[1], 'utf8'));
-        break;
+    const flagsMatch = arg.match(/^--cli-flags-path=(.+)$/);
+    if (flagsMatch) {
+        flags = JSON.parse(fs.readFileSync(flagsMatch[1], 'utf8'));
+        continue;
+    }
+    const htmlMatch = arg.match(/^--html-output-path=(.+)$/);
+    if (htmlMatch) {
+        htmlOutputPath = htmlMatch[1];
     }
 }
 
@@ -53,13 +62,26 @@ const chrome = await chromeLauncher.launch({
     chromeFlags: ['--headless', '--no-sandbox', '--disable-dev-shm-usage'],
 });
 
+// Request both JSON and HTML when a HTML output path was given; JSON only
+// otherwise.  When multiple formats are requested, runnerResult.report is an
+// array whose order matches the output array.
+const output = htmlOutputPath ? ['json', 'html'] : 'json';
+
 const options = {
     logLevel: 'silent',
-    output: 'json',
+    output,
     port: chrome.port,
     ...remainingFlags,
 };
 
 const runnerResult = await lighthouse(url, options, config);
-console.log(runnerResult.report);
+
+if (htmlOutputPath) {
+    const [jsonReport, htmlReport] = runnerResult.report;
+    console.log(jsonReport);
+    fs.writeFileSync(htmlOutputPath, htmlReport);
+} else {
+    console.log(runnerResult.report);
+}
+
 await chrome.kill();
