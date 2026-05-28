@@ -299,22 +299,6 @@ class Snapshot(TimeStampedModel, models.Model):
         template = "metrics/reports/category-checklist.html"
         return render_to_string(template, context)
 
-    #
-    # def audit_failed_table(self, audit: str) -> str:
-    #     values = []
-    #
-    #     failed = self.data["audits"][audit]["scores"][0]
-    #     if failed or passed:
-    #         title = self.data["audits"][audit]["title"]
-    #         values.append((title, failed, passed))
-    #
-    #     context = {
-    #         "category": self.data["categories"][category]["title"],
-    #         "values": values,
-    #     }
-    #     template = "metrics/reports/audit-failed.html"
-    #     return render_to_string(template, context)
-
     def get_context(self):
         categories = self.data["categories"]
 
