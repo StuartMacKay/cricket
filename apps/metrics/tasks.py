@@ -1,4 +1,4 @@
-from celery import chain, group, shared_task
+from celery import chain, chord, group, shared_task
 
 from .models import Page, Site, Snapshot
 
@@ -15,8 +15,6 @@ def take_snapshot(site_pk: int):
     chain(
         create_pages.s(snapshot.pk),
         audit_pages.s(snapshot.pk),
-        collect_metrics.s(snapshot.pk),
-        publish_report.s(snapshot.pk),
     ).delay()
 
 
@@ -27,8 +25,14 @@ def create_pages(snapshot_pk: int):
 
 @shared_task
 def audit_pages(result, snapshot_pk: int):
-    pks = Snapshot.objects.get(pk=snapshot_pk).get_page_keys()
-    group(audit_page.s(pk) for pk in pks)()
+    pks = list(Snapshot.objects.get(pk=snapshot_pk).get_page_keys())
+    return chord(
+        group(audit_page.s(pk) for pk in pks),
+        chain(
+            collect_metrics.si(snapshot_pk),
+            publish_report.si(snapshot_pk),
+        ),
+    ).delay()
 
 
 @shared_task
@@ -37,10 +41,10 @@ def audit_page(page_pk: int):
 
 
 @shared_task
-def collect_metrics(result, snapshot_pk: int):
+def collect_metrics(snapshot_pk: int):
     Snapshot.objects.get(pk=snapshot_pk).collect_metrics()
 
 
 @shared_task
-def publish_report(result, snapshot_pk: int):
+def publish_report(snapshot_pk: int):
     Snapshot.objects.get(pk=snapshot_pk).publish_report()
