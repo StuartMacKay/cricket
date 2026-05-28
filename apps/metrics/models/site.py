@@ -117,6 +117,7 @@ class Site(TimeStampedModel, models.Model):
         verbose_name=_("Config"),
         help_text=_("The command-line arguments for running Lighthouse in JSON format"),
         default=dict,
+        blank=True,
     )
 
     crontab = models.CharField(
