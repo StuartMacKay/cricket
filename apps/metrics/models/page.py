@@ -151,15 +151,24 @@ class Page(TimeStampedModel, models.Model):
         extra = {"url": self.url}
         log.info("Page audit started", extra=extra)
 
-        result = subprocess.run(
-            [
-                LIGHTHOUSE_SCRIPT,
-                self.url,
-                "--quiet",
-                "--cli-flags-path=%s" % self.snapshot.data["config_file"],
-            ],
-            capture_output=True,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    LIGHTHOUSE_SCRIPT,
+                    self.url,
+                    "--quiet",
+                    "--cli-flags-path=%s" % self.snapshot.data["config_file"],
+                ],
+                capture_output=True,
+                timeout=300,
+            )
+        except subprocess.TimeoutExpired:
+            log.error("Page audit timed out", extra=extra)
+            fp = io.BytesIO(b"Audit timed out after 300 seconds")
+            self.report.save("lighthouse.txt", File(fp), save=False)
+            self.audited = False
+            self.save()
+            return
 
         if result.returncode == 0:
             fp = io.BytesIO(result.stdout)
