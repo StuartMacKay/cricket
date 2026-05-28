@@ -88,10 +88,14 @@ Requirements
 Getting started
 ---------------
 
-Clone the repository and copy the example environment file::
+Clone the repository and install pre-commit hooks::
 
     git clone <repo-url> django-lighthouse
     cd django-lighthouse
+    make setup
+
+Copy the example environment file::
+
     cp .env.example .env
 
 All settings have sensible defaults for development, so no editing is
@@ -206,6 +210,16 @@ The Makefile wraps the most common operations::
     make shell           # open a Django shell_plus session
     make migrate         # run database migrations
     make makemigrations  # create new migrations (use app=<name> to target one)
+
+**Pre-commit hooks**
+
+The repository includes pre-commit hooks for ruff (lint and format),
+whitespace cleanup, large-file detection, and gitlint for commit message
+style.  They are installed by ``make setup`` and run automatically on
+every ``git commit``::
+
+    make setup           # install hooks (once, after cloning)
+    pre-commit run --all-files   # run against all files manually
 
 **Updating Python dependencies**
 

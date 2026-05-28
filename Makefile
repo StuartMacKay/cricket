@@ -3,6 +3,7 @@
 #
 # Usage:
 #
+#    make setup       # first-time setup: install pre-commit hooks
 #    make up          # start the full dev stack
 #    make down        # stop the stack
 #    make build       # (re)build images after dependency changes
@@ -49,6 +50,15 @@ clean-coverage:
 
 .PHONY: clean
 clean: clean-coverage clean-mypy clean-tests
+
+# #########
+#   Setup
+# #########
+
+.PHONY: setup
+setup:
+	@echo "Installing pre-commit hooks..."
+	pre-commit install --install-hooks
 
 # ##########
 #   Docker
