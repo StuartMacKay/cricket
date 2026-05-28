@@ -16,12 +16,11 @@ import environ  # type: ignore
 #   PROJECT DIRECTORIES
 # #######################
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.dirname(PROJECT_DIR)
-ROOT_DIR = os.path.dirname(BACKEND_DIR)
+CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(CONFIG_DIR)
 NODE_DIR = os.path.join(ROOT_DIR, "node")
 
-sys.path.insert(0, os.path.join(BACKEND_DIR, "apps"))
+sys.path.insert(0, os.path.join(ROOT_DIR, "apps"))
 
 # ###############
 #   ENVIRONMENT
@@ -175,7 +174,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
-            os.path.join(PROJECT_DIR, "templates"),
+            os.path.join(ROOT_DIR, "templates"),
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -236,8 +235,7 @@ STATICFILES_FINDERS = [
 ]
 
 STATICFILES_DIRS = [
-    os.path.join(PROJECT_DIR, "static"),
-    os.path.join(BACKEND_DIR, "assets"),
+    os.path.join(ROOT_DIR, "assets"),
 ]
 
 # DJANGO_STATIC_HOST only needs to be set when using a CDN such as CloudFront

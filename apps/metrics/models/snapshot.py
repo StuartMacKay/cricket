@@ -20,7 +20,7 @@ from . import Rating
 from .page import Page
 
 STYLESHEET_PATH = os.path.join(
-    settings.BACKEND_DIR, "assets/css/bootstrap.min.css"
+    settings.ROOT_DIR, "assets/css/bootstrap.min.css"
 )
 
 
