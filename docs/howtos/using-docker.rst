@@ -8,13 +8,12 @@ The assumption is that you have `Docker Engine <https://docs.docker.com/engine/>
 and `docker-compose <https://github.com/docker/compose>`_ (Version 2), or
 `Docker Desktop <https://docs.docker.com/desktop/>`_ installed.
 
-The ``docker-compose.yml`` file in the ``backend`` directory defines services
-for all the components: postgres, celery, django, etc. Run the project
-site using:
+The ``docker-compose.yml`` defines services for all the components: postgres, celery,
+django, etc. Run the project site using:
 
 ..  code-block:: shell
 
-    docker compose --profile backend up
+    docker compose up
 
 It will take a few, actually several, moments to download and build the
 images and run the containers. However, that is all there is to it.
