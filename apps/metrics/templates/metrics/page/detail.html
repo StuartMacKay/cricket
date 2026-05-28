@@ -15,6 +15,12 @@
         <td>{% trans "URL" %}</td>
         <td>{{ object.url }}</td>
       </tr>
+      {% if object.html_report %}
+      <tr>
+        <td>{% trans "Lighthouse report" %}</td>
+        <td><a href="{% url 'page-report' object.pk %}">{% trans "View full Lighthouse report" %}</a></td>
+      </tr>
+      {% endif %}
       </tbody>
     </table>
 

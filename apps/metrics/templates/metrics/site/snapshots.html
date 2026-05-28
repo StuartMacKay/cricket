@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ site.name }} — {% trans "Snapshots" %} — {{ block.super }}{% endblock %}
+
+{% block main %}
+  <main>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'site-list' %}">{% trans "Sites" %}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ site.name }}</li>
+      </ol>
+    </nav>
+
+    <h1>{{ site.name }}</h1>
+    <p>
+      <a href="{{ site.url }}" rel="noopener noreferrer" target="_blank">{{ site.url }}</a>
+    </p>
+
+    <h2>{% trans "Snapshots" %}</h2>
+
+    {% if snapshots %}
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>{% trans "Date" %}</th>
+            <th>{% trans "Platform" %}</th>
+            <th>{% trans "Pages" %}</th>
+            <th>{% trans "Report" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for snapshot in snapshots %}
+            <tr>
+              <td>
+                <a href="{% url 'snapshot-detail' snapshot.pk %}">
+                  {{ snapshot.created|date:"j M Y, g:i a" }}
+                </a>
+              </td>
+              <td>{{ snapshot.platform }}</td>
+              <td>{{ snapshot.pages.count }}</td>
+              <td>
+                {% if snapshot.report %}
+                  <a href="{{ snapshot.report.url }}">{% trans "PDF" %}</a>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if is_paginated %}
+        <nav aria-label="{% trans 'Pagination' %}">
+          <ul class="pagination">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1">&laquo; {% trans "First" %}</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">{% trans "Previous" %}</a>
+              </li>
+            {% endif %}
+            <li class="page-item disabled">
+              <span class="page-link">
+                {% blocktranslate with current=page_obj.number total=page_obj.paginator.num_pages %}
+                  Page {{ current }} of {{ total }}
+                {% endblocktranslate %}
+              </span>
+            </li>
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">{% trans "Next" %}</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">{% trans "Last" %} &raquo;</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
+
+    {% else %}
+      <p class="text-muted">
+        {% trans "No snapshots have been taken for this site yet." %}
+        {% trans "Use the admin action to create one." %}
+      </p>
+    {% endif %}
+  </main>
+{% endblock %}

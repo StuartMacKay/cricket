@@ -1,5 +1,6 @@
-from django.views import generic
+from django.urls import reverse_lazy
+from django.views.generic import RedirectView
 
 
-class IndexView(generic.TemplateView):
-    template_name = "site/index.html"
+class IndexView(RedirectView):
+    url = reverse_lazy("site-list")
