@@ -21,7 +21,8 @@ RUN apt-get update \
     && apt-get clean \
     && groupadd -g "${GID}" python \
     && useradd --create-home --no-log-init -u "${UID}" -g "${GID}" python \
-    && chown python:python -R /app
+    && chown python:python -R /app \
+    && mkdir /venv && chown python:python /venv
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.18 /uv /usr/local/bin/uv
 
@@ -29,9 +30,10 @@ USER python
 
 ENV LC_ALL="C.UTF-8" \
     PYTHONUNBUFFERED="true" \
-    PYTHONPATH="/app/backend" \
-    PATH="/app/.venv/bin:${PATH}" \
-    VIRTUAL_ENV="/app/.venv" \
+    PYTHONPATH="/app" \
+    PATH="/venv/bin:${PATH}" \
+    VIRTUAL_ENV="/venv" \
+    UV_PROJECT_ENVIRONMENT="/venv" \
     TERM="xterm-256color" \
     USER="python" \
     CHROME_PATH="/usr/bin/chromium"
@@ -67,7 +69,7 @@ WORKDIR /app/node
 
 RUN npm ci
 
-WORKDIR /app/backend
+WORKDIR /app
 
 # ##############
 #   Production
@@ -83,7 +85,7 @@ LABEL maintainer="Stuart MacKay <smackay@fastmail.com>"
 ARG DEBUG="false"
 ENV DEBUG="${DEBUG}"
 
-COPY --chown=python:python . /app/backend
+COPY --chown=python:python . /app
 
 COPY --chown=python:python node/ /app/node/
 
@@ -91,9 +93,9 @@ WORKDIR /app/node
 
 RUN npm ci
 
-WORKDIR /app/backend
+WORKDIR /app
 
-ENTRYPOINT ["/app/backend/bin/django-entrypoint"]
+ENTRYPOINT ["/app/bin/django-entrypoint"]
 
 EXPOSE 8000
 

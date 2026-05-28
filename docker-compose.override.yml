@@ -8,6 +8,9 @@
 #   - Mounts your local source into the container so code changes are
 #     reflected immediately without rebuilding the image
 #   - Replaces gunicorn with Django's dev server (auto-reloads on save)
+#
+# The virtualenv lives at /venv (outside /app) so it is never shadowed
+# by the source bind mount.
 
 services:
   django:
@@ -15,22 +18,22 @@ services:
       target: dev
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - .:/app/backend
+      - .:/app
 
   celery-worker:
     build:
       target: dev
     volumes:
-      - .:/app/backend
+      - .:/app
 
   celery-beat:
     build:
       target: dev
     volumes:
-      - .:/app/backend
+      - .:/app
 
   flower:
     build:
       target: dev
     volumes:
-      - .:/app/backend
+      - .:/app
