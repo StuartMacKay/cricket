@@ -10,7 +10,7 @@ from metrics import tasks
 from config.celery import app
 from tests.factories import SiteFactory
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
 
 @pytest.fixture
