@@ -49,7 +49,7 @@ docs = [
 dev = [
     { include-group = "tests" },
     { include-group = "docs" },
-    "bumpver",
+    "bump-my-version",
     "django-debug-toolbar",
     "django-extensions",
     "django-stubs",
@@ -131,16 +131,31 @@ ignore_errors = true
 [tool.django-stubs]
 django_settings_module = "config.settings"
 
-[tool.bumpver]
-current_version = "v0.0.0"
-version_pattern = "vMAJOR.MINOR.PATCH"
+[tool.bumpversion]
+current_version = "0.1.0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
 commit = true
-commit_message = "Bump version to {new_version}"
+message = "Bump version to v{new_version}"
 tag = true
+tag_name = "v{new_version}"
+tag_message = "v{new_version}"
 push = true
 
-[tool.bumpver.file_patterns]
-"pyproject.toml" = [
-    '^current_version = "{version}"$',
-    '^version = "MAJOR.MINOR.PATCH"$',
-]
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'current_version = "{current_version}"'
+replace = 'current_version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "CHANGELOG.md"
+search = "## Unreleased"
+replace = """## Unreleased
+
+
+## v{new_version}"""

@@ -99,32 +99,29 @@ lock:
 #   Version
 # ###########
 #
-# Version numbers follow semantic versioning (vMAJOR.MINOR.PATCH).
-# bumpver updates pyproject.toml, commits the change, and tags the commit.
+# Version numbers follow semantic versioning (MAJOR.MINOR.PATCH).
+# bump-my-version updates pyproject.toml and CHANGELOG.md, then commits
+# and tags. The CHANGELOG "Unreleased" heading is renamed to the new version
+# and a fresh "Unreleased" section is added — all via pyproject.toml config.
 #
 # Usage:
-#   make bumpver             # increment patch (bug fixes: v0.1.0 → v0.1.1)
-#   make bumpver tag=minor   # increment minor (new features: v0.1.0 → v0.2.0)
-#   make bumpver tag=major   # increment major (breaking changes: v0.1.0 → v1.0.0)
+#   make bumpver             # increment patch (bug fixes: 0.1.0 → 0.1.1)
+#   make bumpver tag=minor   # increment minor (new features: 0.1.0 → 0.2.0)
+#   make bumpver tag=major   # increment major (breaking changes: 0.1.0 → 1.0.0)
 #   make bumpver dry=1       # preview changes without committing
 
 tag  ?= patch
 dry  ?=
 
-bumpver_flags = --$(tag)
+bumpver_flags = $(tag)
 ifneq ($(dry),)
-bumpver_flags += --dry
+bumpver_flags += --dry-run
 endif
 
 .PHONY: bumpver
 bumpver:
 	@echo "Bumping version ($(tag))$(if $(dry), [dry run],)..."
-	@if [ -z "$(dry)" ]; then \
-		NEW_VERSION=$$($(exec) bumpver update --$(tag) --dry 2>&1 | grep 'New Version' | awk '{print $$NF}'); \
-		python3 bin/update-changelog $$NEW_VERSION; \
-		git add CHANGELOG.rst; \
-	fi
-	$(exec) bumpver update $(bumpver_flags)
+	uvx bump-my-version bump $(bumpver_flags)
 
 # ##########
 #   Django
