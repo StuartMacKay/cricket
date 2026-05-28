@@ -8,7 +8,19 @@
 
 {% block main %}
   <main>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'site-list' %}">{% trans "Sites" %}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'site-snapshots' object.site.pk %}">{{ object.site.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ date }}</li>
+      </ol>
+    </nav>
+
     <h1>{% trans "Site Report" %}</h1>
+
+    <p>
+      <a href="{% url 'snapshot-pages' object.pk %}">{% trans "View all pages" %}</a>
+    </p>
 
     <table class="summary mb-4">
       <tbody>

@@ -3,6 +3,15 @@
 
 {% block main %}
   <main>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'site-list' %}">{% trans "Sites" %}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'site-snapshots' snapshot.site.pk %}">{{ snapshot.site.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'snapshot-detail' snapshot.pk %}">{% trans "Report" %}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{% trans "Pages" %}</li>
+      </ol>
+    </nav>
+
     <h1>{% trans "Pages" %}</h1>
 
     <ul class="list-unstyled">

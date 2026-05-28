@@ -1,4 +1,5 @@
 from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
 from django.views import generic
 
 from metrics.models import Page, Rating, Snapshot
@@ -9,8 +10,13 @@ class PageListView(generic.ListView):
     model = Page
     paginate_by = 50
 
+    def get_snapshot(self):
+        if not hasattr(self, "_snapshot"):
+            self._snapshot = get_object_or_404(Snapshot, pk=self.kwargs["pk"])
+        return self._snapshot
+
     def get_filters(self):
-        filters = {"snapshot_id": self.kwargs.get("pk")}
+        filters = {"snapshot": self.get_snapshot()}
 
         rating = self.request.GET.get("rating")
         category = self.request.GET.get("category")
@@ -29,6 +35,11 @@ class PageListView(generic.ListView):
 
     def get_queryset(self):
         return self.model.objects.filter(**self.get_filters())
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["snapshot"] = self.get_snapshot()
+        return context
 
 
 class PageDetailView(generic.DetailView):
