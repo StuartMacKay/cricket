@@ -94,6 +94,12 @@ class Page(TimeStampedModel, models.Model):
             self.save()
             log.error("Page weight measurement timed out", extra=extra)
             return
+        except OSError as exc:
+            self.error = f"Failed to launch script: {exc}"
+            self.measured = False
+            self.save()
+            log.error("Page weight script could not be launched", extra={**extra, "error": str(exc)})
+            return
 
         if result.returncode != 0:
             self.error = result.stderr.decode(errors="replace")
