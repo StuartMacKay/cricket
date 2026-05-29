@@ -48,7 +48,11 @@ app.conf.beat_schedule = {
     },
 }
 
-app.conf.task_routes = {"lighthouse.tasks.take_snapshots": {"queue": "sites"}}
+app.conf.task_routes = {
+    "lighthouse.tasks.take_snapshots": {"queue": "sites"},
+    "lighthouse.tasks.take_site_snapshot": {"queue": "sites"},
+    "lighthouse.tasks.take_snapshot": {"queue": "sites"},
+}
 
 
 @setup_logging.connect

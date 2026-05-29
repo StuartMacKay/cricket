@@ -133,8 +133,11 @@ def create_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], body:
         if in_flight:
             return Status(409, snapshot_in_progress(in_flight.pk))
 
-    # Trigger the new snapshot
+    # Create the snapshot record up front so we can return its ID immediately
+    from headers.tasks import take_header_snapshot
     from lighthouse.tasks import take_snapshot
+    from pageweight.tasks import take_weight_snapshot
+
     snapshot = site.create_snapshot()
 
     # Store webhook_url if provided
@@ -142,7 +145,9 @@ def create_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], body:
         snapshot.webhook_url = body.webhook_url
         snapshot.save(update_fields=["webhook_url"])
 
-    take_snapshot.delay(site.pk)
+    take_snapshot.delay(site.pk, snapshot_pk=snapshot.pk)
+    take_header_snapshot.delay(site.pk)
+    take_weight_snapshot.delay(site.pk)
 
     return Status(202, {
         "id": snapshot.pk,

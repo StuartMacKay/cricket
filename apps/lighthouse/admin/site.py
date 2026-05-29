@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django_json_widget.widgets import JSONEditorWidget
 
 from ..models import Site
-from ..tasks import take_snapshot
+from ..tasks import take_site_snapshot
 
 
 @register(Site)
@@ -24,7 +24,7 @@ class SiteAdmin(admin.ModelAdmin):
 
     def create_snapshot(self, request, queryset):
         for site in queryset:
-            take_snapshot.delay(site.pk)
+            take_site_snapshot.delay(site.pk)
             messages.info(
                 request,
                 _("Creating snapshot of %(name)s") % {"name": site.name},

@@ -10,12 +10,26 @@ log = logging.getLogger(__name__)
 @shared_task
 def take_snapshots():
     for site in Site.objects.overdue():
-        take_snapshot.delay(site.pk)
+        take_site_snapshot.delay(site.pk)
 
 
 @shared_task
-def take_snapshot(site_pk: int):
-    snapshot = Site.objects.get(pk=site_pk).create_snapshot()
+def take_site_snapshot(site_pk: int):
+    """Coordinate all audit types for a single site."""
+    from headers.tasks import take_header_snapshot
+    from pageweight.tasks import take_weight_snapshot
+
+    take_snapshot.delay(site_pk)
+    take_header_snapshot.delay(site_pk)
+    take_weight_snapshot.delay(site_pk)
+
+
+@shared_task
+def take_snapshot(site_pk: int, snapshot_pk: int | None = None):
+    if snapshot_pk is None:
+        snapshot = Site.objects.get(pk=site_pk).create_snapshot()
+    else:
+        snapshot = Snapshot.objects.get(pk=snapshot_pk)
     snapshot.status = Snapshot.Status.RUNNING
     snapshot.save(update_fields=["status"])
 
