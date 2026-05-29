@@ -19,7 +19,9 @@ VALID_CATEGORIES = ["performance", "accessibility", "best-practices", "seo"]
 
 def _html_report_url(request: HttpRequest, page: Page) -> Optional[str]:
     if page.html_report:
-        return request.build_absolute_uri(reverse("page-report", kwargs={"pk": page.pk}))
+        return request.build_absolute_uri(
+            reverse("admin:lighthouse-page-report", kwargs={"pk": page.pk})
+        )
     return None
 
 

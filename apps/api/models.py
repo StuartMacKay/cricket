@@ -3,11 +3,7 @@ import secrets
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
 from django_extensions.db.models import TimeStampedModel
-
-_ph = PasswordHasher()
 
 
 def _generate_key():
@@ -15,11 +11,7 @@ def _generate_key():
 
 
 class APIKey(TimeStampedModel, models.Model):
-    """Named API key for agent authentication.
-
-    The full plaintext key is only shown at creation time.  Only the
-    argon2 hash and the first 8 characters (prefix) are stored.
-    """
+    """Named API key for agent authentication."""
 
     class Meta:
         verbose_name = _("API Key")
@@ -32,15 +24,11 @@ class APIKey(TimeStampedModel, models.Model):
         help_text=_("Human-readable name shown in agent-context responses"),
     )
 
-    key_prefix = models.CharField(
-        max_length=8,
-        verbose_name=_("Key prefix"),
-        help_text=_("First 8 characters of the key, shown in admin for identification"),
-    )
-
-    hashed_key = models.CharField(
-        max_length=200,
-        verbose_name=_("Hashed key"),
+    key = models.CharField(
+        max_length=64,
+        unique=True,
+        verbose_name=_("Key"),
+        default=_generate_key,
     )
 
     site = models.ForeignKey(
@@ -66,31 +54,7 @@ class APIKey(TimeStampedModel, models.Model):
     )
 
     def __str__(self):
-        return f"{self.name} ({self.key_prefix}…)"
-
-    @classmethod
-    def create(cls, name: str, site=None, is_admin: bool = False) -> tuple["APIKey", str]:
-        """Create a new APIKey and return (instance, plaintext_key).
-
-        The plaintext key is returned only once and never stored.
-        """
-        plaintext = _generate_key()
-        prefix = plaintext[:8]
-        hashed = _ph.hash(plaintext)
-        key = cls.objects.create(
-            name=name,
-            key_prefix=prefix,
-            hashed_key=hashed,
-            site=site,
-            is_admin=is_admin,
-        )
-        return key, plaintext
-
-    def verify(self, plaintext: str) -> bool:
-        try:
-            return _ph.verify(self.hashed_key, plaintext)
-        except VerifyMismatchError:
-            return False
+        return self.name
 
 
 class APIFeedback(TimeStampedModel, models.Model):

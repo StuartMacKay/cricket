@@ -9,15 +9,15 @@ from tests.factories import SiteFactory
 @pytest.fixture
 def api_key(db):
     """A valid API key with access to all sites."""
-    key_obj, plaintext = APIKey.create(name="test-agent")
-    return key_obj, plaintext
+    key_obj = APIKey.objects.create(name="test-agent")
+    return key_obj, key_obj.key
 
 
 @pytest.fixture
 def admin_api_key(db):
     """An admin API key."""
-    key_obj, plaintext = APIKey.create(name="test-admin", is_admin=True)
-    return key_obj, plaintext
+    key_obj = APIKey.objects.create(name="test-admin", is_admin=True)
+    return key_obj, key_obj.key
 
 
 @pytest.fixture

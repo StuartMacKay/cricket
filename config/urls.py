@@ -18,7 +18,6 @@ urlpatterns += [
 urlpatterns += [
     path("robots.txt", RobotsView.as_view()),
     path("watchman/", include("watchman.urls")),
-    path("audits/", include("lighthouse.urls")),
     path("api/", api.urls),
 ]
 

@@ -7,16 +7,15 @@ from .models import APIKey
 
 
 class BearerAuth(HttpBearer):
-    """Validate Authorization: Bearer <key> header against hashed APIKey rows."""
+    """Validate Authorization: Bearer <key> header against APIKey rows."""
 
     def authenticate(self, request, token: str) -> Optional[APIKey]:
-        prefix = token[:8]
-        candidates = APIKey.objects.filter(key_prefix=prefix).select_related("site")
-        for candidate in candidates:
-            if candidate.verify(token):
-                APIKey.objects.filter(pk=candidate.pk).update(last_used=timezone.now())
-                return candidate
-        return None
+        try:
+            key = APIKey.objects.select_related("site").get(key=token)
+        except APIKey.DoesNotExist:
+            return None
+        APIKey.objects.filter(pk=key.pk).update(last_used=timezone.now())
+        return key
 
 
 bearer_auth = BearerAuth()

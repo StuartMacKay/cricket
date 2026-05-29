@@ -3,4 +3,4 @@ from django.views.generic import RedirectView
 
 
 class IndexView(RedirectView):
-    url = reverse_lazy("site-list")
+    url = reverse_lazy("admin:index")
