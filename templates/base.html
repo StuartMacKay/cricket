@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="{% static 'icon.svg' %}">
   <link rel="apple-touch-icon" href="{% static 'apple-touch-icon.png' %}">
   <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
-  <title>{% block title %}{{ request.site.name }}{% endblock %}</title>
+  <title>{% block title %}{% trans "Lighthouse" %}{% endblock %}</title>
 
   {% block css %}
     <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">

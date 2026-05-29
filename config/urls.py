@@ -1,9 +1,8 @@
 from django.conf import settings
 from django.contrib import admin
-from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 
-from core.views import IndexView, RobotsView, SitemapView
+from core.views import IndexView, RobotsView
 
 urlpatterns = [
     path("", IndexView.as_view(), name="index"),
@@ -17,9 +16,8 @@ urlpatterns += [
 
 urlpatterns += [
     path("robots.txt", RobotsView.as_view()),
-    path("sitemap.xml", sitemap, {"sitemaps": {"index": SitemapView}}),
     path("watchman/", include("watchman.urls")),
-    path("audits/", include("metrics.urls")),
+    path("audits/", include("lighthouse.urls")),
 ]
 
 if settings.DEBUG:

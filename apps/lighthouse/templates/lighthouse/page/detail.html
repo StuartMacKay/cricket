@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n lighthouse %}
+
+{% block title %}{{ object.url }} — {{ object.snapshot }} — {{ block.super }}{% endblock %}
+
+{% block main %}
+  <main>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'site-list' %}">{% trans "Sites" %}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'site-snapshots' object.snapshot.site.pk %}">{{ object.snapshot.site.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'snapshot-detail' object.snapshot.pk %}">{{ object.snapshot }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'snapshot-pages' object.snapshot.pk %}">{% trans "Pages" %}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ object.url }}</li>
+      </ol>
+    </nav>
+
+    <h1>{{ object.url }}</h1>
+
+    {% if object.html_report %}
+      <p>
+        <a href="{% url 'page-report' object.pk %}">{% trans "View full Lighthouse report" %}</a>
+      </p>
+    {% endif %}
+
+    {% for category in ordered_categories %}
+      <h2>{{ category.title }} — {{ category.score }}</h2>
+
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>{% trans "Title" %}</th>
+            <th>{% trans "Score" %}</th>
+            <th>{% trans "Rating" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for audit in audits_by_category|dict_get:category.category_id %}
+            <tr>
+              <td>{{ audit.audit.title }}</td>
+              <td>
+                {% if audit.score is not None %}
+                  {{ audit.score }}
+                {% else %}
+                  <span class="text-muted">{% trans "N/A" %}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if audit.rating %}
+                  {{ audit.rating }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="3" class="text-muted">{% trans "No audits available." %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+  </main>
+{% endblock %}

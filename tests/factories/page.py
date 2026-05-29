@@ -1,6 +1,6 @@
 import factory
 
-from metrics.models import Page
+from lighthouse.models import Page
 
 
 class PageFactory(factory.django.DjangoModelFactory):

@@ -1,6 +1,6 @@
 import factory
 
-from metrics.models import Site
+from lighthouse.models import Site
 
 
 class SiteFactory(factory.django.DjangoModelFactory):

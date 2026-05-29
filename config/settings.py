@@ -51,13 +51,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
-    "django.contrib.sitemaps",
     "django_celery_beat",
     "django_celery_results",
     "django_json_widget",
     "watchman",
-    "metrics",
+    "lighthouse",
 ]
 
 MIDDLEWARE = [
@@ -70,7 +68,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "django.contrib.sites.middleware.CurrentSiteMiddleware",
 ]
 
 if DJANGO_ENV == "development" and DEBUG:
@@ -346,12 +343,6 @@ if DSN := env.str("DJANGO_SENTRY_DSN", default=""):
 vars().update(env.email("DJANGO_EMAIL_URL", default="consolemail://"))
 
 EMAIL_USE_SSL = env.bool("DJANGO_EMAIL_USE_SSL", default="True")
-
-# ########
-#   SITE
-# ########
-
-SITE_ID = env.int("DJANGO_SITE_ID", default=1)
 
 # Move the Django Admin to somewhere obscure. This more about reducing
 # the load on the server, created by break-in attempts and very little

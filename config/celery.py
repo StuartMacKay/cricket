@@ -43,12 +43,12 @@ app.conf.task_default_queue = "pages"
 # the task every hour, at the risk of swamping the workers
 app.conf.beat_schedule = {
     "take-snapshots": {
-        "task": "metrics.tasks.take_snapshots",
+        "task": "lighthouse.tasks.take_snapshots",
         "schedule": crontab(minute="0"),  # every hour, on the hour
     },
 }
 
-app.conf.task_routes = {"metrics.tasks.take_snapshots": {"queue": "sites"}}
+app.conf.task_routes = {"lighthouse.tasks.take_snapshots": {"queue": "sites"}}
 
 
 @setup_logging.connect

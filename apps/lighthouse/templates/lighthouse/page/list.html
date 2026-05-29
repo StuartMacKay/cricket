@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n lighthouse %}
+
+{% block title %}{% trans "Pages" %} — {{ snapshot }} — {{ block.super }}{% endblock %}
+
+{% block main %}
+  <main>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'site-list' %}">{% trans "Sites" %}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'site-snapshots' snapshot.site.pk %}">{{ snapshot.site.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'snapshot-detail' snapshot.pk %}">{{ snapshot }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{% trans "Pages" %}</li>
+      </ol>
+    </nav>
+
+    <h1>{% trans "Pages" %}</h1>
+
+    {% if page_obj.object_list %}
+      <ul>
+        {% for page in page_obj %}
+          <li>
+            <a href="{% url 'page-detail' page.pk %}">{{ page.url }}</a>
+            {% if page.html_report %}
+              — <a href="{% url 'page-report' page.pk %}">{% trans "Lighthouse report" %}</a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+
+      {% if is_paginated %}
+        <nav aria-label="{% trans 'Pagination' %}">
+          <ul class="pagination">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?{% param_replace page=1 %}">&laquo; {% trans "First" %}</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?{% param_replace page=page_obj.previous_page_number %}">{% trans "Previous" %}</a>
+              </li>
+            {% endif %}
+            <li class="page-item disabled">
+              <span class="page-link">
+                {% blocktranslate with current=page_obj.number total=page_obj.paginator.num_pages %}
+                  Page {{ current }} of {{ total }}
+                {% endblocktranslate %}
+              </span>
+            </li>
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?{% param_replace page=page_obj.next_page_number %}">{% trans "Next" %}</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?{% param_replace page=page_obj.paginator.num_pages %}">{% trans "Last" %} &raquo;</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
+
+    {% else %}
+      <p class="text-muted">{% trans "No pages have been audited for this snapshot yet." %}</p>
+    {% endif %}
+  </main>
+{% endblock %}

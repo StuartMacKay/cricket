@@ -14,10 +14,7 @@ dependencies = [
     "django-storages",
     "django-watchman",
     "gunicorn",
-    "kaleido",
     "lxml",
-    "pandas",
-    "plotly",
     "psycopg[binary]",
     "pydantic",
     "redis",
@@ -25,7 +22,6 @@ dependencies = [
     "python-json-logger",
     "requests",
     "sentry-sdk",
-    "weasyprint",
     "whitenoise[brotli]",
 ]
 
@@ -107,7 +103,7 @@ FAIL_INVALID_TEMPLATE_VARS = true
 addopts = "--strict-markers -m 'not integration'"
 
 markers = [
-    "integration: full end-to-end tests that run Lighthouse, generate PDFs, etc. (slow)",
+    "integration: full end-to-end tests that run Lighthouse (slow)",
 ]
 
 pythonpath = [".", "apps"]
