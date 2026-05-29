@@ -71,6 +71,10 @@ class Site(TimeStampedModel, models.Model):
         verbose_name = _("Site")
         verbose_name_plural = _("Sites")
 
+    class Platform(models.TextChoices):
+        MOBILE = "mobile", _("Mobile")
+        DESKTOP = "desktop", _("Desktop")
+
     name = models.CharField(
         verbose_name=_("Name"),
         help_text=_("The name of the site"),
@@ -109,9 +113,21 @@ class Site(TimeStampedModel, models.Model):
         blank=True,
     )
 
-    config = models.JSONField(
-        verbose_name=_("Config"),
-        help_text=_("The command-line arguments for running Lighthouse in JSON format"),
+    platform = models.CharField(
+        verbose_name=_("Platform"),
+        help_text=_("The device form factor Lighthouse uses when auditing this site"),
+        max_length=10,
+        choices=Platform.choices,
+        default=Platform.MOBILE,
+    )
+
+    extra_config = models.JSONField(
+        verbose_name=_("Extra config"),
+        help_text=_(
+            "Additional Lighthouse config options (JSON). "
+            "The Platform field above is always applied automatically; "
+            "use this only for advanced overrides."
+        ),
         default=dict,
         blank=True,
     )
@@ -228,6 +244,12 @@ class Site(TimeStampedModel, models.Model):
         yield from self._load_sitemap(url or self.sitemap_file.path)
 
     def create_config_file(self) -> str:
+        """Write a Lighthouse config JSON file and return its path.
+
+        Merges extra_config with the platform's formFactor setting, with
+        extra_config taking precedence for any other keys.
+        """
+        config = {**self.extra_config, "formFactor": self.platform}
         tmpdir = tempfile.gettempdir()
         lh_dir = os.path.join(tmpdir, "lighthouse-snapshot")
         if not os.path.exists(lh_dir):
@@ -239,20 +261,17 @@ class Site(TimeStampedModel, models.Model):
             dir=lh_dir,
             delete=False,
         ) as fp:
-            json.dump(self.config, fp)
+            json.dump(config, fp)
             return fp.name
 
     def create_snapshot(self) -> "Snapshot":
         from .snapshot import Snapshot
 
-        platform = self.config.get("formFactor", "mobile")
-        config_file = self.create_config_file()
-
         snapshot = Snapshot.objects.create(
             site=self,
             status=Snapshot.Status.PENDING,
-            platform=platform,
-            config_file=config_file,
+            platform=self.platform,
+            config_file=self.create_config_file(),
         )
         self.snapped = timezone.now()
         self.save(update_fields=["snapped"])

@@ -18,6 +18,7 @@ class SiteOut(Schema):
     name: str
     url: str
     enabled: bool
+    platform: str
     snapped: Optional[datetime]
     crontab: str
     current_snapshot_id: Optional[int]

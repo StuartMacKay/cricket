@@ -11,7 +11,8 @@ from ..tasks import take_snapshot
 
 @register(Site)
 class SiteAdmin(admin.ModelAdmin):
-    list_display = ("name", "url", "enabled", "platform_display", "snapped")
+    list_display = ("name", "url", "enabled", "platform", "snapped")
+    list_filter = ("enabled", "platform")
     ordering = ("-created",)
     search_fields = ("name", "url")
     readonly_fields = ("created", "modified", "snapped", "current_snapshot")
@@ -20,11 +21,6 @@ class SiteAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {"widget": JSONEditorWidget},
     }
-
-    def platform_display(self, obj):
-        snapshot = obj.current_snapshot
-        return snapshot.platform if snapshot else "—"
-    platform_display.short_description = "Platform"
 
     def create_snapshot(self, request, queryset):
         for site in queryset:

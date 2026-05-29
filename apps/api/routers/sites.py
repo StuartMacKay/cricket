@@ -15,6 +15,7 @@ def _site_out(site: Site) -> dict:
         "name": site.name,
         "url": site.url,
         "enabled": site.enabled,
+        "platform": site.platform,
         "snapped": site.snapped,
         "crontab": site.crontab,
         "current_snapshot_id": site.current_snapshot_id,

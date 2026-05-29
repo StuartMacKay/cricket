@@ -95,16 +95,24 @@ class TestSiteCreateSnapshot:
         assert Snapshot.objects.filter(pk=snapshot.pk).exists()
 
     def test_config_file_is_created_on_disk(self):
-        site = SiteFactory(config={"formFactor": "mobile"})
+        site = SiteFactory(platform="mobile")
         snapshot = site.create_snapshot()
         assert os.path.exists(snapshot.config_file)
 
-    def test_config_file_contains_the_site_config(self):
-        config = {"formFactor": "desktop"}
-        site = SiteFactory(config=config)
+    def test_config_file_contains_form_factor(self):
+        site = SiteFactory(platform="desktop")
         snapshot = site.create_snapshot()
         with open(snapshot.config_file) as fp:
-            assert json.load(fp) == config
+            data = json.load(fp)
+        assert data["formFactor"] == "desktop"
+
+    def test_config_file_merges_extra_config(self):
+        site = SiteFactory(platform="mobile", extra_config={"onlyCategories": ["performance"]})
+        snapshot = site.create_snapshot()
+        with open(snapshot.config_file) as fp:
+            data = json.load(fp)
+        assert data["formFactor"] == "mobile"
+        assert data["onlyCategories"] == ["performance"]
 
     def test_site_snapped_timestamp_is_updated(self):
         site = SiteFactory(snapped=None)
@@ -121,12 +129,12 @@ class TestSiteCreateSnapshot:
         assert site.snapshots.count() == 2
 
     def test_snapshot_platform_defaults_to_mobile(self):
-        site = SiteFactory(config={})
+        site = SiteFactory()
         snapshot = site.create_snapshot()
         assert snapshot.platform == "mobile"
 
-    def test_snapshot_platform_reflects_form_factor(self):
-        site = SiteFactory(config={"formFactor": "desktop"})
+    def test_snapshot_platform_reflects_site_platform(self):
+        site = SiteFactory(platform="desktop")
         snapshot = site.create_snapshot()
         assert snapshot.platform == "desktop"
 

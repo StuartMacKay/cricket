@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('lighthouse', '0002_snapshot_webhook_url'),
+        ('lighthouse', '0001_initial'),
     ]
 
     operations = [
