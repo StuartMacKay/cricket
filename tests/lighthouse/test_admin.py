@@ -10,10 +10,10 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 
 from lighthouse.admin.snapshot import SnapshotAdmin
-from lighthouse.models import Snapshot as LHSnapshot
+from lighthouse.models import Snapshot as LighthouseSnapshot
 from sites.admin.site import SiteAdmin
 from sites.models import Site
-from tests.factories import LHSnapshotFactory, SiteFactory
+from tests.factories import LighthouseSnapshotFactory, SiteFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -39,7 +39,7 @@ def site_admin():
 
 @pytest.fixture
 def snapshot_admin():
-    return SnapshotAdmin(LHSnapshot, AdminSite())
+    return SnapshotAdmin(LighthouseSnapshot, AdminSite())
 
 
 class TestCreateSnapshotAction:

@@ -12,7 +12,7 @@ import pathlib
 import pytest
 
 from lighthouse.models import SnapshotAudit, SnapshotCategory
-from tests.factories import LHSnapshotFactory, PageFactory, SiteFactory
+from tests.factories import LighthouseSnapshotFactory, PageFactory, SiteFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -43,7 +43,7 @@ def snapshot_with_config(tmp_path):
     """Snapshot whose config_file points to a real file on disk."""
     config_file = tmp_path / "lighthouse-config.json"
     config_file.write_text('{"formFactor": "desktop"}')
-    return LHSnapshotFactory(config_file=str(config_file))
+    return LighthouseSnapshotFactory(config_file=str(config_file))
 
 
 @pytest.fixture
@@ -62,19 +62,19 @@ def audited_page(snapshot_with_config, lighthouse_report):
 class TestSnapshotCreatePages:
     def test_creates_one_page_per_url(self, httpserver, sitemap):
         site = SiteFactory(sitemap_url=httpserver.url_for("/sitemap.xml"))
-        snapshot = LHSnapshotFactory(snapshot__site=site)
+        snapshot = LighthouseSnapshotFactory(snapshot__site=site)
         snapshot.create_pages()
         assert snapshot.pages.count() == 2
 
     def test_pages_are_initially_not_audited(self, httpserver, sitemap):
         site = SiteFactory(sitemap_url=httpserver.url_for("/sitemap.xml"))
-        snapshot = LHSnapshotFactory(snapshot__site=site)
+        snapshot = LighthouseSnapshotFactory(snapshot__site=site)
         snapshot.create_pages()
         assert snapshot.pages.filter(audited=False).count() == 2
 
     def test_page_urls_match_sitemap(self, httpserver, sitemap):
         site = SiteFactory(sitemap_url=httpserver.url_for("/sitemap.xml"))
-        snapshot = LHSnapshotFactory(snapshot__site=site)
+        snapshot = LighthouseSnapshotFactory(snapshot__site=site)
         snapshot.create_pages()
         urls = set(snapshot.pages.values_list("url", flat=True))
         assert httpserver.url_for("/") in urls
@@ -82,7 +82,7 @@ class TestSnapshotCreatePages:
 
     def test_calling_twice_does_not_duplicate_pages(self, httpserver, sitemap):
         site = SiteFactory(sitemap_url=httpserver.url_for("/sitemap.xml"))
-        snapshot = LHSnapshotFactory(snapshot__site=site)
+        snapshot = LighthouseSnapshotFactory(snapshot__site=site)
         snapshot.create_pages()
         snapshot.create_pages()
         assert snapshot.pages.count() == 2

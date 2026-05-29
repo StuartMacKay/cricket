@@ -4,7 +4,7 @@ from django.http import HttpRequest
 from django.urls import reverse
 from ninja import Path, Query, Router, Status
 
-from lighthouse.models import Page, Snapshot as LHSnapshot
+from lighthouse.models import Page, Snapshot as LighthouseSnapshot
 from sites.models import Site, Snapshot as SiteSnapshot
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, invalid_field, not_found
@@ -107,11 +107,11 @@ def get_page(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot_id:
         sites_snapshot = SiteSnapshot.objects.get(pk=snapshot_id, site=site)
         lh_snapshot = sites_snapshot.lighthouse_snapshots.first()
         if not lh_snapshot:
-            raise LHSnapshot.DoesNotExist
+            raise LighthouseSnapshot.DoesNotExist
         page = Page.objects.prefetch_related(
             "categories", "audits__audit"
         ).get(pk=page_id, snapshot=lh_snapshot)
-    except (Site.DoesNotExist, SiteSnapshot.DoesNotExist, LHSnapshot.DoesNotExist, Page.DoesNotExist):
+    except (Site.DoesNotExist, SiteSnapshot.DoesNotExist, LighthouseSnapshot.DoesNotExist, Page.DoesNotExist):
         return Status(404, not_found("page", str(page_id)))
 
     categories = _page_categories(page)

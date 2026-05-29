@@ -1,6 +1,6 @@
 import factory
 
-from lighthouse.models import Snapshot as LHSnapshot, SnapshotCategory
+from lighthouse.models import Snapshot as LighthouseSnapshot, SnapshotCategory
 from sites.models import Snapshot
 
 
@@ -15,21 +15,21 @@ class SnapshotFactory(factory.django.DjangoModelFactory):
     status = Snapshot.Status.PENDING
 
 
-class LHSnapshotFactory(factory.django.DjangoModelFactory):
+class LighthouseSnapshotFactory(factory.django.DjangoModelFactory):
     """Creates a lighthouse.Snapshot attached to a sites.Snapshot."""
 
     class Meta:
-        model = LHSnapshot
+        model = LighthouseSnapshot
 
     snapshot = factory.SubFactory(SnapshotFactory)
-    status = LHSnapshot.Status.PENDING
+    status = LighthouseSnapshot.Status.PENDING
 
 
 class SnapshotCategoryFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = SnapshotCategory
 
-    snapshot = factory.SubFactory(LHSnapshotFactory)
+    snapshot = factory.SubFactory(LighthouseSnapshotFactory)
     category_id = "performance"
     title = "Performance"
     poor_count = 0

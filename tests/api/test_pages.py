@@ -4,7 +4,7 @@ import pytest
 
 from tests.factories import (
     AuditDefinitionFactory,
-    LHSnapshotFactory,
+    LighthouseSnapshotFactory,
     PageAuditFactory,
     PageCategoryFactory,
     PageFactory,
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.django_db
 
 def make_snapshot(site):
     """Return (sites_snapshot, lh_snapshot) pair for a given site."""
-    lh = LHSnapshotFactory(snapshot__site=site)
+    lh = LighthouseSnapshotFactory(snapshot__site=site)
     return lh.snapshot, lh
 
 

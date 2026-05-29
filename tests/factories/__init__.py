@@ -1,11 +1,11 @@
 from .audit import AuditDefinitionFactory, PageAuditFactory, PageCategoryFactory
 from .page import PageFactory
 from .site import SiteFactory
-from .snapshot import LHSnapshotFactory, SnapshotCategoryFactory, SnapshotFactory
+from .snapshot import LighthouseSnapshotFactory, SnapshotCategoryFactory, SnapshotFactory
 
 __all__ = (
     "AuditDefinitionFactory",
-    "LHSnapshotFactory",
+    "LighthouseSnapshotFactory",
     "PageAuditFactory",
     "PageCategoryFactory",
     "PageFactory",

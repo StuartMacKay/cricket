@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.factories import LHSnapshotFactory, SiteFactory, SnapshotCategoryFactory, SnapshotFactory
+from tests.factories import LighthouseSnapshotFactory, SiteFactory, SnapshotCategoryFactory, SnapshotFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -76,7 +76,7 @@ class TestLatestSnapshot:
     def test_response_includes_categories(self, auth_client):
         site = SiteFactory()
         sites_snapshot = SnapshotFactory(site=site, status="complete")
-        lh_snapshot = LHSnapshotFactory(snapshot=sites_snapshot)
+        lh_snapshot = LighthouseSnapshotFactory(snapshot=sites_snapshot)
         SnapshotCategoryFactory(snapshot=lh_snapshot, category_id="performance")
         response = auth_client.get(f"/api/sites/{site.slug}/snapshots/latest/")
         assert "categories" in response.json()

@@ -4,7 +4,7 @@ from django.db import models
 from django.http import HttpRequest
 from ninja import Path, Query, Router, Status
 
-from lighthouse.models import Snapshot as LHSnapshot
+from lighthouse.models import Snapshot as LighthouseSnapshot
 from sites.models import Site, Snapshot
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, no_complete_snapshot, not_found, snapshot_in_progress
@@ -25,7 +25,7 @@ def _rating_from_score(score) -> Optional[str]:
     return "poor"
 
 
-def _build_categories(lh_snapshot: LHSnapshot) -> dict:
+def _build_categories(lh_snapshot: LighthouseSnapshot) -> dict:
     cats = {}
     for cat in lh_snapshot.category_results.all():
         cats[cat.category_id] = {
@@ -70,7 +70,7 @@ def list_snapshots(
         .prefetch_related(
             models.Prefetch(
                 "lighthouse_snapshots",
-                queryset=LHSnapshot.objects.prefetch_related("category_results"),
+                queryset=LighthouseSnapshot.objects.prefetch_related("category_results"),
                 to_attr="_lh_list",
             )
         )
