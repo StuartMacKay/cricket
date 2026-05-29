@@ -1,5 +1,5 @@
 from django.http import HttpRequest
-from ninja import Router
+from ninja import Router, Status
 
 from lighthouse.models import Site
 from ..auth import bearer_auth
@@ -30,15 +30,15 @@ def list_sites(request: HttpRequest):
     return [_site_out(s) for s in qs]
 
 
-@router.get("/{slug}/", auth=bearer_auth, response={200: SiteOut, 404: ErrorResponse, 403: ErrorResponse}, summary="Get a site")
+@router.get("/{slug}/", auth=bearer_auth, response={200: SiteOut, 403: ErrorResponse, 404: ErrorResponse}, summary="Get a site")
 def get_site(request: HttpRequest, slug: str):
     api_key = request.auth
     try:
         site = Site.objects.select_related("current_snapshot").get(slug=slug)
     except Site.DoesNotExist:
-        return 404, not_found("site", slug)
+        return Status(404, not_found("site", slug))
 
     if api_key and api_key.site_id and api_key.site_id != site.pk:
-        return 403, {"error": {"code": "forbidden", "message": "This key does not have access to that site"}}
+        return Status(403, {"error": {"code": "forbidden", "message": "This key does not have access to that site"}})
 
     return _site_out(site)

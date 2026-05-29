@@ -1,8 +1,8 @@
 from typing import Optional
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Sum
 from django.http import HttpRequest
-from ninja import Query, Router
+from ninja import Query, Router, Status
 
 from lighthouse.models import AuditDefinition, SnapshotAudit
 from ..auth import bearer_auth
@@ -21,7 +21,7 @@ def list_audits(
     sort: str = Query("audit_id", description="Sort by: audit_id, fail_rate, failing_pages"),
 ):
     if sort not in VALID_SORT:
-        return 422, invalid_field("sort", sort, VALID_SORT)
+        return Status(422, invalid_field("sort", sort, VALID_SORT))
 
     qs = AuditDefinition.objects.all()
 
@@ -67,5 +67,5 @@ def get_audit(request: HttpRequest, audit_id: str):
     try:
         audit = AuditDefinition.objects.get(audit_id=audit_id)
     except AuditDefinition.DoesNotExist:
-        return 404, not_found("audit", audit_id)
+        return Status(404, not_found("audit", audit_id))
     return audit

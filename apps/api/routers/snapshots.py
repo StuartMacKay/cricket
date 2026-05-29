@@ -2,13 +2,13 @@ from typing import Annotated, Optional
 
 from django.http import HttpRequest
 from django.utils import timezone
-from ninja import Path, Query, Router
+from ninja import Path, Query, Router, Status
 
-from lighthouse.models import Site, Snapshot, SnapshotCategory
+from lighthouse.models import Site, Snapshot
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, no_complete_snapshot, not_found, snapshot_in_progress
 from ..pagination import DEFAULT_LIMIT, paginate
-from ..schemas import SnapshotOut, SnapshotTriggerIn, SnapshotTriggerOut
+from ..schemas import PaginatedOut, SnapshotOut, SnapshotTriggerIn, SnapshotTriggerOut
 
 router = Router(tags=["snapshots"])
 
@@ -48,7 +48,7 @@ def _snapshot_out(snapshot: Snapshot) -> dict:
     }
 
 
-@router.get("/", auth=bearer_auth, response={200: dict, 404: ErrorResponse}, summary="List snapshots for a site")
+@router.get("/", auth=bearer_auth, response={200: PaginatedOut, 404: ErrorResponse}, summary="List snapshots for a site")
 def list_snapshots(
     request: HttpRequest,
     slug: Annotated[str, Path(...)],
@@ -59,7 +59,7 @@ def list_snapshots(
     try:
         site = Site.objects.get(slug=slug)
     except Site.DoesNotExist:
-        return 404, not_found("site", slug)
+        return Status(404, not_found("site", slug))
 
     qs = (
         Snapshot.objects.filter(site=site)
@@ -79,12 +79,12 @@ def list_snapshots(
     return result
 
 
-@router.get("/latest/", auth=bearer_auth, response={200: dict, 404: ErrorResponse}, summary="Most recent complete snapshot")
+@router.get("/latest/", auth=bearer_auth, response={200: SnapshotOut, 404: ErrorResponse}, summary="Most recent complete snapshot")
 def latest_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)]):
     try:
         site = Site.objects.get(slug=slug)
     except Site.DoesNotExist:
-        return 404, not_found("site", slug)
+        return Status(404, not_found("site", slug))
 
     snapshot = (
         Snapshot.objects.filter(site=site, status=Snapshot.Status.COMPLETE)
@@ -93,17 +93,17 @@ def latest_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)]):
         .first()
     )
     if not snapshot:
-        return 404, no_complete_snapshot(slug)
+        return Status(404, no_complete_snapshot(slug))
 
     return _snapshot_out(snapshot)
 
 
-@router.get("/{snapshot_id}/", auth=bearer_auth, response={200: dict, 404: ErrorResponse}, summary="Get a snapshot")
+@router.get("/{snapshot_id}/", auth=bearer_auth, response={200: SnapshotOut, 404: ErrorResponse}, summary="Get a snapshot")
 def get_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot_id: int):
     try:
         site = Site.objects.get(slug=slug)
     except Site.DoesNotExist:
-        return 404, not_found("site", slug)
+        return Status(404, not_found("site", slug))
 
     try:
         snapshot = (
@@ -112,17 +112,17 @@ def get_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot
             .get(pk=snapshot_id)
         )
     except Snapshot.DoesNotExist:
-        return 404, not_found("snapshot", str(snapshot_id))
+        return Status(404, not_found("snapshot", str(snapshot_id)))
 
     return _snapshot_out(snapshot)
 
 
-@router.post("/", auth=bearer_auth, response={202: SnapshotTriggerOut, 409: ErrorResponse, 404: ErrorResponse}, summary="Trigger a new snapshot")
+@router.post("/", auth=bearer_auth, response={202: SnapshotTriggerOut, 404: ErrorResponse, 409: ErrorResponse}, summary="Trigger a new snapshot")
 def create_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], body: SnapshotTriggerIn):
     try:
         site = Site.objects.get(slug=slug)
     except Site.DoesNotExist:
-        return 404, not_found("site", slug)
+        return Status(404, not_found("site", slug))
 
     # Check for in-flight snapshot unless force=True
     if not body.force:
@@ -131,7 +131,7 @@ def create_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], body:
             status__in=[Snapshot.Status.PENDING, Snapshot.Status.RUNNING],
         ).order_by("-pk").first()
         if in_flight:
-            return 409, snapshot_in_progress(in_flight.pk)
+            return Status(409, snapshot_in_progress(in_flight.pk))
 
     # Trigger the new snapshot
     from lighthouse.tasks import take_snapshot
@@ -144,10 +144,10 @@ def create_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], body:
 
     take_snapshot.delay(site.pk)
 
-    return 202, {
+    return Status(202, {
         "id": snapshot.pk,
         "status": snapshot.status,
         "existing": False,
         "poll_url": f"/api/jobs/{snapshot.pk}/",
         "webhook_url": body.webhook_url,
-    }
+    })

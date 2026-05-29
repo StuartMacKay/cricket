@@ -2,13 +2,13 @@ from typing import Annotated, Optional
 
 from django.http import HttpRequest
 from django.urls import reverse
-from ninja import Path, Query, Router
+from ninja import Path, Query, Router, Status
 
-from lighthouse.models import Page, PageAudit, PageCategory, Site, Snapshot
+from lighthouse.models import Page, Site, Snapshot
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, invalid_field, not_found
 from ..pagination import DEFAULT_LIMIT, paginate
-from ..schemas import PageDetailOut, PageListOut
+from ..schemas import PageDetailOut, PaginatedOut
 
 router = Router(tags=["pages"])
 
@@ -29,7 +29,7 @@ def _page_categories(page: Page) -> dict:
     }
 
 
-@router.get("/", auth=bearer_auth, response={200: dict, 404: ErrorResponse, 422: ErrorResponse}, summary="List pages for a snapshot")
+@router.get("/", auth=bearer_auth, response={200: PaginatedOut, 404: ErrorResponse, 422: ErrorResponse}, summary="List pages for a snapshot")
 def list_pages(
     request: HttpRequest,
     slug: Annotated[str, Path(...)],
@@ -41,15 +41,15 @@ def list_pages(
     cursor: Optional[str] = Query(None),
 ):
     if rating and rating not in VALID_RATINGS:
-        return 422, invalid_field("rating", rating, VALID_RATINGS)
+        return Status(422, invalid_field("rating", rating, VALID_RATINGS))
     if category and category not in VALID_CATEGORIES:
-        return 422, invalid_field("category", category, VALID_CATEGORIES)
+        return Status(422, invalid_field("category", category, VALID_CATEGORIES))
 
     try:
         site = Site.objects.get(slug=slug)
         snapshot = Snapshot.objects.get(pk=snapshot_id, site=site)
     except (Site.DoesNotExist, Snapshot.DoesNotExist):
-        return 404, not_found("snapshot", str(snapshot_id))
+        return Status(404, not_found("snapshot", str(snapshot_id)))
 
     qs = (
         Page.objects.filter(snapshot=snapshot, audited=True)
@@ -93,7 +93,7 @@ def list_pages(
     return result
 
 
-@router.get("/{page_id}/", auth=bearer_auth, response={200: dict, 404: ErrorResponse}, summary="Get a page with full audit detail")
+@router.get("/{page_id}/", auth=bearer_auth, response={200: PageDetailOut, 404: ErrorResponse}, summary="Get a page with full audit detail")
 def get_page(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot_id: Annotated[int, Path(...)], page_id: int):
     try:
         site = Site.objects.get(slug=slug)
@@ -102,7 +102,7 @@ def get_page(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot_id:
             "categories", "audits__audit"
         ).get(pk=page_id, snapshot=snapshot)
     except (Site.DoesNotExist, Snapshot.DoesNotExist, Page.DoesNotExist):
-        return 404, not_found("page", str(page_id))
+        return Status(404, not_found("page", str(page_id)))
 
     categories = _page_categories(page)
 

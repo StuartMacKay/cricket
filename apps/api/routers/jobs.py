@@ -2,7 +2,7 @@ from typing import Optional
 
 from django.http import HttpRequest
 from django.utils import timezone
-from ninja import Router
+from ninja import Router, Status
 
 from lighthouse.models import Snapshot
 from ..auth import bearer_auth
@@ -59,5 +59,5 @@ def get_job(request: HttpRequest, job_id: int):
     try:
         snapshot = Snapshot.objects.select_related("site").get(pk=job_id)
     except Snapshot.DoesNotExist:
-        return 404, not_found("job", str(job_id))
+        return Status(404, not_found("job", str(job_id)))
     return _job_out(snapshot)

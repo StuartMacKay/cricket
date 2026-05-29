@@ -1,8 +1,8 @@
 from django.http import HttpRequest
-from ninja import Router
+from ninja import Router, Status
 
 from ..auth import bearer_auth
-from ..errors import ErrorResponse, not_found
+from ..errors import ErrorResponse
 from ..models import APIFeedback
 from ..schemas import FeedbackIn, FeedbackOut
 
@@ -27,7 +27,7 @@ def create_feedback(request: HttpRequest, body: FeedbackIn):
 @router.get("/", auth=bearer_auth, response={200: list[FeedbackOut], 403: ErrorResponse}, summary="List feedback (admin only)")
 def list_feedback(request: HttpRequest):
     if not request.auth or not request.auth.is_admin:
-        return 403, {"error": {"code": "forbidden", "message": "Admin key required"}}
+        return Status(403, {"error": {"code": "forbidden", "message": "Admin key required"}})
     qs = APIFeedback.objects.select_related("api_key").order_by("-created")[:100]
     return [
         {
