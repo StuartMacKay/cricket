@@ -1,4 +1,4 @@
-from .page import PageWeight, PageResource
-from .snapshot import WeightSnapshot
+from .page import Page, Resource
+from .snapshot import Snapshot
 
-__all__ = ("PageResource", "PageWeight", "WeightSnapshot")
+__all__ = ("Page", "Resource", "Snapshot")

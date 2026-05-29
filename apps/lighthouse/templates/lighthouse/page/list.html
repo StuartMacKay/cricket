@@ -8,7 +8,7 @@
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="{% url 'site-list' %}">{% trans "Sites" %}</a></li>
-        <li class="breadcrumb-item"><a href="{% url 'site-snapshots' snapshot.site.pk %}">{{ snapshot.site.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'site-snapshots' snapshot.snapshot.site.pk %}">{{ snapshot.snapshot.site.name }}</a></li>
         <li class="breadcrumb-item"><a href="{% url 'snapshot-detail' snapshot.pk %}">{{ snapshot }}</a></li>
         <li class="breadcrumb-item active" aria-current="page">{% trans "Pages" %}</li>
       </ol>

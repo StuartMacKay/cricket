@@ -20,7 +20,7 @@ LIGHTHOUSE_SCRIPT = os.path.join(settings.NODE_DIR, "src", "lighthouse.js")
 
 
 def audit_report_path(instance, filename):
-    slug = instance.snapshot.site.slug
+    slug = instance.snapshot.snapshot.site.slug
     name, extension = os.path.splitext(os.path.basename(filename))
     year = "%d" % instance.created.year
     month = "%02d" % instance.created.month

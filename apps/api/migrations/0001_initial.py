@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('lighthouse', '0001_initial'),
+        ('sites', '0001_initial'),
     ]
 
     operations = [
@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('hashed_key', models.CharField(max_length=200, verbose_name='Hashed key')),
                 ('is_admin', models.BooleanField(default=False, help_text='Admin keys can read feedback and manage other resources', verbose_name='Admin key')),
                 ('last_used', models.DateTimeField(blank=True, null=True, verbose_name='Last used')),
-                ('site', models.ForeignKey(blank=True, help_text='Limit this key to a single site; leave blank for all sites', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='api_keys', to='lighthouse.site', verbose_name='Site scope')),
+                ('site', models.ForeignKey(blank=True, help_text='Limit this key to a single site; leave blank for all sites', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='api_keys', to='sites.site', verbose_name='Site scope')),
             ],
             options={
                 'verbose_name': 'API Key',

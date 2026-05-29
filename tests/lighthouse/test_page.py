@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lighthouse.models import AuditDefinition, PageAudit, PageCategory, Rating
-from tests.factories import PageFactory, SnapshotFactory
+from tests.factories import LHSnapshotFactory, PageFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -50,7 +50,7 @@ def snapshot(tmp_path):
     """A snapshot with a real config file on disk."""
     config_file = tmp_path / "lighthouse-config.json"
     config_file.write_text("{}")
-    return SnapshotFactory(config_file=str(config_file))
+    return LHSnapshotFactory(config_file=str(config_file))
 
 
 @pytest.fixture

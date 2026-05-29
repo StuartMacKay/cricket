@@ -6,14 +6,11 @@ Covers:
   Site.create_snapshot()  – snapshot creation and config-file handling
 """
 
-import json
-import os
-
 import pytest
 import time_machine
 from django.utils import timezone
 
-from lighthouse.models import Site, Snapshot
+from sites.models import Site, Snapshot
 from tests.factories import SiteFactory
 
 pytestmark = pytest.mark.django_db
@@ -93,26 +90,6 @@ class TestSiteCreateSnapshot:
         site = SiteFactory()
         snapshot = site.create_snapshot()
         assert Snapshot.objects.filter(pk=snapshot.pk).exists()
-
-    def test_config_file_is_created_on_disk(self):
-        site = SiteFactory(platform="mobile")
-        snapshot = site.create_snapshot()
-        assert os.path.exists(snapshot.config_file)
-
-    def test_config_file_contains_form_factor(self):
-        site = SiteFactory(platform="desktop")
-        snapshot = site.create_snapshot()
-        with open(snapshot.config_file) as fp:
-            data = json.load(fp)
-        assert data["formFactor"] == "desktop"
-
-    def test_config_file_merges_extra_config(self):
-        site = SiteFactory(platform="mobile", extra_config={"onlyCategories": ["performance"]})
-        snapshot = site.create_snapshot()
-        with open(snapshot.config_file) as fp:
-            data = json.load(fp)
-        assert data["formFactor"] == "mobile"
-        assert data["onlyCategories"] == ["performance"]
 
     def test_site_snapped_timestamp_is_updated(self):
         site = SiteFactory(snapped=None)

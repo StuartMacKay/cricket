@@ -1,4 +1,4 @@
-from .page import PageHeaders
-from .snapshot import HeaderSnapshot
+from .page import Page
+from .snapshot import Snapshot
 
-__all__ = ("HeaderSnapshot", "PageHeaders")
+__all__ = ("Page", "Snapshot")

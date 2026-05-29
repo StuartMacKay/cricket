@@ -4,8 +4,6 @@ from django_extensions.db.models import TimeStampedModel
 
 
 class Snapshot(TimeStampedModel, models.Model):
-    """A complete set of header audits for one site at one point in time."""
-
     class Meta:
         verbose_name = _("Snapshot")
         verbose_name_plural = _("Snapshots")
@@ -17,11 +15,16 @@ class Snapshot(TimeStampedModel, models.Model):
         COMPLETE = "complete", _("Complete")
         FAILED = "failed", _("Failed")
 
-    snapshot = models.ForeignKey(
-        "sites.Snapshot",
+    site = models.ForeignKey(
+        "Site",
         on_delete=models.CASCADE,
-        related_name="header_snapshots",
-        verbose_name=_("Snapshot"),
+        related_name="snapshots",
+        verbose_name=_("Site"),
+    )
+
+    platform = models.CharField(
+        max_length=10,
+        verbose_name=_("Platform"),
     )
 
     status = models.CharField(
@@ -32,11 +35,11 @@ class Snapshot(TimeStampedModel, models.Model):
         db_index=True,
     )
 
-    page_count = models.IntegerField(
-        null=True,
+    webhook_url = models.URLField(
+        verbose_name=_("Webhook URL"),
+        help_text=_("Optional URL to POST to when the snapshot completes"),
         blank=True,
-        verbose_name=_("Page count"),
     )
 
     def __str__(self):
-        return f"{self.snapshot.site.name} ({self.created.strftime('%Y-%m-%d')})"
+        return f"{self.site.name} ({self.created.strftime('%Y-%m-%d')})"

@@ -1,1 +1,1 @@
-from . import audit, page, site, snapshot  # noqa: F401
+from . import audit, page, snapshot  # noqa: F401

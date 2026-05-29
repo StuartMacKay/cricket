@@ -1,10 +1,10 @@
 from django.contrib import admin
 
-from ..models import PageResource, PageWeight
+from ..models import Page, Resource
 
 
-class PageResourceInline(admin.TabularInline):
-    model = PageResource
+class ResourceInline(admin.TabularInline):
+    model = Resource
     fields = ("resource_type", "url", "transfer_size", "resource_size", "mime_type")
     readonly_fields = fields
     extra = 0
@@ -19,8 +19,8 @@ class PageResourceInline(admin.TabularInline):
         return False
 
 
-@admin.register(PageWeight)
-class PageWeightAdmin(admin.ModelAdmin):
+@admin.register(Page)
+class PageAdmin(admin.ModelAdmin):
     list_display = (
         "url",
         "snapshot",
@@ -44,7 +44,7 @@ class PageWeightAdmin(admin.ModelAdmin):
         "created",
         "modified",
     )
-    inlines = [PageResourceInline]
+    inlines = [ResourceInline]
 
     def has_add_permission(self, request, obj=None):
         return False

@@ -18,9 +18,9 @@ class SnapshotView(generic.DetailView):
             {
                 "date": date(snapshot.created, "jS F Y"),
                 "time": date(snapshot.created, "g:i a"),
-                "url": snapshot.site.url,
+                "url": snapshot.snapshot.site.url,
                 "pages": snapshot.page_count or snapshot.get_number_of_pages(),
-                "platform": snapshot.platform,
+                "platform": snapshot.snapshot.platform,
                 "category_results": category_results,
             }
         )

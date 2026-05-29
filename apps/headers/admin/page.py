@@ -1,10 +1,10 @@
 from django.contrib import admin
 
-from ..models import PageHeaders
+from ..models import Page
 
 
-@admin.register(PageHeaders)
-class PageHeadersAdmin(admin.ModelAdmin):
+@admin.register(Page)
+class PageAdmin(admin.ModelAdmin):
     list_display = ("url", "status_code", "redirect_count", "snapshot")
     list_filter = ("status_code",)
     ordering = ("-created",)

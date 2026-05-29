@@ -10,24 +10,19 @@ log = logging.getLogger(__name__)
 TIMEOUT = 30  # seconds
 
 
-class PageHeaders(TimeStampedModel, models.Model):
-    """HTTP response headers collected for a single URL.
-
-    headers is a dict of {header_name_lowercase: value} from the final
-    response after following redirects. redirect_count records how many
-    redirects were followed to reach the final URL.
-    """
+class Page(TimeStampedModel, models.Model):
+    """HTTP response headers collected for a single URL."""
 
     class Meta:
-        verbose_name = _("Page Headers")
-        verbose_name_plural = _("Page Headers")
+        verbose_name = _("Page")
+        verbose_name_plural = _("Pages")
         ordering = ["url"]
         indexes = [
             models.Index(fields=["snapshot", "url"]),
         ]
 
     snapshot = models.ForeignKey(
-        "HeaderSnapshot",
+        "Snapshot",
         on_delete=models.CASCADE,
         related_name="pages",
         verbose_name=_("Snapshot"),
@@ -79,11 +74,9 @@ class PageHeaders(TimeStampedModel, models.Model):
                 allow_redirects=True,
                 headers={"User-Agent": "cricket/1.0 headers-audit"},
             )
-            # Collect redirect chain
             self.redirect_count = len(response.history)
             self.final_url = str(response.url)
             self.status_code = response.status_code
-            # Store headers with lowercase keys; take last value for duplicates
             self.headers = dict(response.headers.lower_items())
             log.info("Headers fetched", extra={**extra, "status": self.status_code})
         except requests.Timeout:

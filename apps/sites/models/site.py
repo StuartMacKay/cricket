@@ -1,8 +1,5 @@
 import datetime as dt
-import json
 import logging
-import os
-import tempfile
 import zlib
 from typing import List, Union
 
@@ -30,6 +27,7 @@ def validate_crontab(value):
 
 
 def sitemap_path(instance, filename):
+    import os
     return os.path.join("sitemaps", instance.slug, filename)
 
 
@@ -65,7 +63,7 @@ class SiteManager(models.Manager):
 
 
 class Site(TimeStampedModel, models.Model):
-    """A Site represents a web site to be audited with Lighthouse."""
+    """A Site represents a web site to be audited."""
 
     class Meta:
         verbose_name = _("Site")
@@ -243,37 +241,12 @@ class Site(TimeStampedModel, models.Model):
         url = HttpUrl(self.sitemap_url) if self.sitemap_url else ""
         yield from self._load_sitemap(url or self.sitemap_file.path)
 
-    def create_config_file(self) -> str:
-        """Write a Lighthouse config JSON file and return its path.
-
-        Merges extra_config with the platform's formFactor setting, with
-        extra_config taking precedence for any other keys.
-        """
-        config = {**self.extra_config, "formFactor": self.platform}
-        tmpdir = tempfile.gettempdir()
-        lh_dir = os.path.join(tmpdir, "lighthouse-snapshot")
-        if not os.path.exists(lh_dir):
-            os.makedirs(lh_dir)
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            prefix=self.slug,
-            suffix=".json",
-            dir=lh_dir,
-            delete=False,
-        ) as fp:
-            json.dump(config, fp)
-            return fp.name
-
     def create_snapshot(self) -> "Snapshot":
         from .snapshot import Snapshot
-
         snapshot = Snapshot.objects.create(
             site=self,
-            status=Snapshot.Status.PENDING,
             platform=self.platform,
-            config_file=self.create_config_file(),
         )
         self.snapped = timezone.now()
         self.save(update_fields=["snapped"])
-
         return snapshot

@@ -9,4 +9,4 @@ class PageFactory(factory.django.DjangoModelFactory):
 
     url = factory.Faker("url")
     audited = False
-    snapshot = factory.SubFactory("tests.factories.SnapshotFactory")
+    snapshot = factory.SubFactory("tests.factories.LHSnapshotFactory")

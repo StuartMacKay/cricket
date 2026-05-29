@@ -9,10 +9,11 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 
-from lighthouse.admin.site import SiteAdmin
 from lighthouse.admin.snapshot import SnapshotAdmin
-from lighthouse.models import Site, Snapshot
-from tests.factories import SiteFactory, SnapshotFactory
+from lighthouse.models import Snapshot as LHSnapshot
+from sites.admin.site import SiteAdmin
+from sites.models import Site
+from tests.factories import LHSnapshotFactory, SiteFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -38,7 +39,7 @@ def site_admin():
 
 @pytest.fixture
 def snapshot_admin():
-    return SnapshotAdmin(Snapshot, AdminSite())
+    return SnapshotAdmin(LHSnapshot, AdminSite())
 
 
 class TestCreateSnapshotAction:
@@ -47,11 +48,11 @@ class TestCreateSnapshotAction:
         site2 = SiteFactory()
         client.force_login(superuser)
 
-        with patch("lighthouse.admin.site.take_snapshot") as mock_task:
+        with patch("sites.admin.site.take_site_snapshot") as mock_task:
             client.post(
-                "/admin/lighthouse/site/",
+                "/admin/sites/site/",
                 {
-                    "action": "create_snapshot",
+                    "action": "trigger_snapshot",
                     "_selected_action": [site1.pk, site2.pk],
                 },
                 follow=True,
@@ -65,11 +66,11 @@ class TestCreateSnapshotAction:
         site = SiteFactory()
         client.force_login(superuser)
 
-        with patch("lighthouse.admin.site.take_snapshot"):
+        with patch("sites.admin.site.take_site_snapshot"):
             response = client.post(
-                "/admin/lighthouse/site/",
+                "/admin/sites/site/",
                 {
-                    "action": "create_snapshot",
+                    "action": "trigger_snapshot",
                     "_selected_action": [site.pk],
                 },
                 follow=True,
@@ -85,8 +86,8 @@ class TestSnapshotAdminPermissions:
         request.user = superuser
         assert snapshot_admin.has_add_permission(request) is False
 
-    def test_site_is_readonly(self, snapshot_admin):
-        assert "site" in snapshot_admin.readonly_fields
+    def test_snapshot_is_readonly(self, snapshot_admin):
+        assert "snapshot" in snapshot_admin.readonly_fields
 
     def test_created_is_readonly(self, snapshot_admin):
         assert "created" in snapshot_admin.readonly_fields

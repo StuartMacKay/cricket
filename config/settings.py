@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "django_celery_results",
     "django_json_widget",
     "watchman",
+    "sites",
     "lighthouse",
     "api",
     "headers",

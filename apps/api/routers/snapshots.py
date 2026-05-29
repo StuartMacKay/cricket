@@ -1,29 +1,17 @@
 from typing import Annotated, Optional
 
+from django.db import models
 from django.http import HttpRequest
-from django.utils import timezone
 from ninja import Path, Query, Router, Status
 
-from lighthouse.models import Site, Snapshot
+from lighthouse.models import Snapshot as LHSnapshot
+from sites.models import Site, Snapshot
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, no_complete_snapshot, not_found, snapshot_in_progress
 from ..pagination import DEFAULT_LIMIT, paginate
 from ..schemas import PaginatedOut, SnapshotOut, SnapshotTriggerIn, SnapshotTriggerOut
 
 router = Router(tags=["snapshots"])
-
-
-def _build_categories(snapshot: Snapshot) -> dict:
-    cats = {}
-    for cat in snapshot.category_results.all():
-        cats[cat.category_id] = {
-            "score": round(cat.score_avg) if cat.score_avg is not None else None,
-            "rating": _rating_from_score(cat.score_avg),
-            "poor": cat.poor_count,
-            "needs": cat.needs_count,
-            "good": cat.good_count,
-        }
-    return cats
 
 
 def _rating_from_score(score) -> Optional[str]:
@@ -37,14 +25,30 @@ def _rating_from_score(score) -> Optional[str]:
     return "poor"
 
 
+def _build_categories(lh_snapshot: LHSnapshot) -> dict:
+    cats = {}
+    for cat in lh_snapshot.category_results.all():
+        cats[cat.category_id] = {
+            "score": round(cat.score_avg) if cat.score_avg is not None else None,
+            "rating": _rating_from_score(cat.score_avg),
+            "poor": cat.poor_count,
+            "needs": cat.needs_count,
+            "good": cat.good_count,
+        }
+    return cats
+
+
 def _snapshot_out(snapshot: Snapshot) -> dict:
+    lh = next(iter(getattr(snapshot, "_lh_list", [])), None)
+    if lh is None:
+        lh = snapshot.lighthouse_snapshots.prefetch_related("category_results").first()
     return {
         "id": snapshot.pk,
         "created": snapshot.created,
         "status": snapshot.status,
         "platform": snapshot.platform,
-        "page_count": snapshot.page_count,
-        "categories": _build_categories(snapshot),
+        "page_count": lh.page_count if lh else None,
+        "categories": _build_categories(lh) if lh else {},
     }
 
 
@@ -63,18 +67,19 @@ def list_snapshots(
 
     qs = (
         Snapshot.objects.filter(site=site)
-        .prefetch_related("category_results")
+        .prefetch_related(
+            models.Prefetch(
+                "lighthouse_snapshots",
+                queryset=LHSnapshot.objects.prefetch_related("category_results"),
+                to_attr="_lh_list",
+            )
+        )
         .order_by("-pk")
     )
     if status:
         qs = qs.filter(status=status)
 
-    result = paginate(
-        qs,
-        limit=limit,
-        cursor=cursor,
-        hint="Add ?status=complete to see only completed snapshots",
-    )
+    result = paginate(qs, limit=limit, cursor=cursor, hint="Add ?status=complete to see only completed snapshots")
     result["items"] = [_snapshot_out(s) for s in result["items"]]
     return result
 
@@ -88,7 +93,6 @@ def latest_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)]):
 
     snapshot = (
         Snapshot.objects.filter(site=site, status=Snapshot.Status.COMPLETE)
-        .prefetch_related("category_results")
         .order_by("-pk")
         .first()
     )
@@ -106,11 +110,7 @@ def get_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot
         return Status(404, not_found("site", slug))
 
     try:
-        snapshot = (
-            Snapshot.objects.filter(site=site)
-            .prefetch_related("category_results")
-            .get(pk=snapshot_id)
-        )
+        snapshot = Snapshot.objects.get(pk=snapshot_id, site=site)
     except Snapshot.DoesNotExist:
         return Status(404, not_found("snapshot", str(snapshot_id)))
 
@@ -124,7 +124,6 @@ def create_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], body:
     except Site.DoesNotExist:
         return Status(404, not_found("site", slug))
 
-    # Check for in-flight snapshot unless force=True
     if not body.force:
         in_flight = Snapshot.objects.filter(
             site=site,
@@ -133,21 +132,19 @@ def create_snapshot(request: HttpRequest, slug: Annotated[str, Path(...)], body:
         if in_flight:
             return Status(409, snapshot_in_progress(in_flight.pk))
 
-    # Create the snapshot record up front so we can return its ID immediately
     from headers.tasks import take_header_snapshot
-    from lighthouse.tasks import take_snapshot
+    from lighthouse.tasks import take_lighthouse_snapshot
     from pageweight.tasks import take_weight_snapshot
 
     snapshot = site.create_snapshot()
 
-    # Store webhook_url if provided
     if body.webhook_url:
         snapshot.webhook_url = body.webhook_url
         snapshot.save(update_fields=["webhook_url"])
 
-    take_snapshot.delay(site.pk, snapshot_pk=snapshot.pk)
-    take_header_snapshot.delay(site.pk)
-    take_weight_snapshot.delay(site.pk)
+    take_lighthouse_snapshot.delay(snapshot.pk)
+    take_header_snapshot.delay(snapshot.pk)
+    take_weight_snapshot.delay(snapshot.pk)
 
     return Status(202, {
         "id": snapshot.pk,

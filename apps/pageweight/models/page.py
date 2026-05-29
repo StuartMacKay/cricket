@@ -15,16 +15,12 @@ PAGEWEIGHT_SCRIPT = os.path.join(settings.NODE_DIR, "src", "pageweight.js")
 RESOURCE_TYPES = ["document", "stylesheet", "script", "image", "font", "other"]
 
 
-class PageWeight(TimeStampedModel, models.Model):
-    """Page weight summary for a single URL.
-
-    Stores total transfer and resource sizes plus a breakdown by resource type.
-    Individual resources are stored in related PageResource rows.
-    """
+class Page(TimeStampedModel, models.Model):
+    """Page weight summary for a single URL."""
 
     class Meta:
-        verbose_name = _("Page Weight")
-        verbose_name_plural = _("Page Weights")
+        verbose_name = _("Page")
+        verbose_name_plural = _("Pages")
         ordering = ["-total_transfer_size"]
         indexes = [
             models.Index(fields=["snapshot", "url"]),
@@ -32,7 +28,7 @@ class PageWeight(TimeStampedModel, models.Model):
         ]
 
     snapshot = models.ForeignKey(
-        "WeightSnapshot",
+        "Snapshot",
         on_delete=models.CASCADE,
         related_name="pages",
         verbose_name=_("Snapshot"),
@@ -61,7 +57,6 @@ class PageWeight(TimeStampedModel, models.Model):
 
     resource_count = models.IntegerField(default=0, verbose_name=_("Resource count"))
 
-    # Per-type breakdown stored as integers (bytes)
     document_transfer = models.BigIntegerField(default=0)
     stylesheet_transfer = models.BigIntegerField(default=0)
     script_transfer = models.BigIntegerField(default=0)
@@ -82,11 +77,11 @@ class PageWeight(TimeStampedModel, models.Model):
         return self.url
 
     def measure(self):
-        """Run the Puppeteer script and populate this row plus PageResource rows."""
+        """Run the Puppeteer script and populate this row plus Resource rows."""
         extra = {"url": self.url, "snapshot": self.snapshot_id}
         log.info("Page weight measurement started", extra=extra)
 
-        platform = self.snapshot.platform
+        platform = self.snapshot.snapshot.platform
         try:
             result = subprocess.run(
                 [PAGEWEIGHT_SCRIPT, self.url, f"--device={platform}"],
@@ -129,10 +124,9 @@ class PageWeight(TimeStampedModel, models.Model):
 
         self.save()
 
-        # Persist individual resources
-        PageResource.objects.filter(page=self).delete()
+        Resource.objects.filter(page=self).delete()
         resources = [
-            PageResource(
+            Resource(
                 page=self,
                 url=r["url"][:2000],
                 resource_type=r.get("type", "other"),
@@ -142,23 +136,23 @@ class PageWeight(TimeStampedModel, models.Model):
             )
             for r in data.get("resources", [])
         ]
-        PageResource.objects.bulk_create(resources, batch_size=500)
+        Resource.objects.bulk_create(resources, batch_size=500)
         log.info("Page weight measured", extra={**extra, "transfer": self.total_transfer_size})
 
 
-class PageResource(models.Model):
+class Resource(models.Model):
     """A single network resource loaded by a page during the Puppeteer measurement."""
 
     class Meta:
-        verbose_name = _("Page Resource")
-        verbose_name_plural = _("Page Resources")
+        verbose_name = _("Resource")
+        verbose_name_plural = _("Resources")
         indexes = [
             models.Index(fields=["page", "resource_type"]),
             models.Index(fields=["page", "transfer_size"]),
         ]
 
     page = models.ForeignKey(
-        PageWeight,
+        Page,
         on_delete=models.CASCADE,
         related_name="resources",
         verbose_name=_("Page"),

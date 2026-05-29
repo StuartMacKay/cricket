@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django.views import generic
 
-from lighthouse.models import Site, Snapshot
+from sites.models import Site, Snapshot
 
 
 class SiteListView(generic.ListView):

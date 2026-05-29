@@ -4,7 +4,7 @@ from django.http import HttpRequest
 from django.utils import timezone
 from ninja import Router, Status
 
-from lighthouse.models import Snapshot
+from sites.models import Snapshot
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, not_found
 from ..schemas import JobOut
@@ -17,9 +17,7 @@ RECENT_JOB_HOURS = 24
 
 def _job_out(snapshot: Snapshot) -> dict:
     now = timezone.now()
-    duration_s = None
-    if snapshot.created:
-        duration_s = int((now - snapshot.created).total_seconds())
+    duration_s = int((now - snapshot.created).total_seconds()) if snapshot.created else None
 
     retry_after = None
     result_url = None
@@ -45,9 +43,7 @@ def list_jobs(request: HttpRequest):
     from datetime import timedelta
     cutoff = timezone.now() - timedelta(hours=RECENT_JOB_HOURS)
     qs = (
-        Snapshot.objects.filter(
-            created__gte=cutoff
-        )
+        Snapshot.objects.filter(created__gte=cutoff)
         .select_related("site")
         .order_by("-pk")[:50]
     )

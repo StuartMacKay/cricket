@@ -5,14 +5,13 @@ from ..models import Snapshot
 
 @admin.register(Snapshot)
 class SnapshotAdmin(admin.ModelAdmin):
-    list_display = ("site", "status", "platform", "page_count", "created")
+    list_display = ("__str__", "status", "page_count", "created")
     ordering = ("-created",)
-    search_fields = ("site__name",)
-    list_filter = ("status", "platform")
+    search_fields = ("snapshot__site__name",)
+    list_filter = ("status",)
     readonly_fields = (
-        "site",
+        "snapshot",
         "status",
-        "platform",
         "page_count",
         "created",
         "modified",

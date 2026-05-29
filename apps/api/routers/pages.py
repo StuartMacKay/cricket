@@ -4,7 +4,8 @@ from django.http import HttpRequest
 from django.urls import reverse
 from ninja import Path, Query, Router, Status
 
-from lighthouse.models import Page, Site, Snapshot
+from lighthouse.models import Page, Snapshot as LHSnapshot
+from sites.models import Site, Snapshot as SiteSnapshot
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, invalid_field, not_found
 from ..pagination import DEFAULT_LIMIT, paginate
@@ -47,12 +48,16 @@ def list_pages(
 
     try:
         site = Site.objects.get(slug=slug)
-        snapshot = Snapshot.objects.get(pk=snapshot_id, site=site)
-    except (Site.DoesNotExist, Snapshot.DoesNotExist):
+        sites_snapshot = SiteSnapshot.objects.get(pk=snapshot_id, site=site)
+    except (Site.DoesNotExist, SiteSnapshot.DoesNotExist):
+        return Status(404, not_found("snapshot", str(snapshot_id)))
+
+    lh_snapshot = sites_snapshot.lighthouse_snapshots.first()
+    if not lh_snapshot:
         return Status(404, not_found("snapshot", str(snapshot_id)))
 
     qs = (
-        Page.objects.filter(snapshot=snapshot, audited=True)
+        Page.objects.filter(snapshot=lh_snapshot, audited=True)
         .prefetch_related("categories")
         .order_by("url")
     )
@@ -97,11 +102,14 @@ def list_pages(
 def get_page(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot_id: Annotated[int, Path(...)], page_id: int):
     try:
         site = Site.objects.get(slug=slug)
-        snapshot = Snapshot.objects.get(pk=snapshot_id, site=site)
+        sites_snapshot = SiteSnapshot.objects.get(pk=snapshot_id, site=site)
+        lh_snapshot = sites_snapshot.lighthouse_snapshots.first()
+        if not lh_snapshot:
+            raise LHSnapshot.DoesNotExist
         page = Page.objects.prefetch_related(
             "categories", "audits__audit"
-        ).get(pk=page_id, snapshot=snapshot)
-    except (Site.DoesNotExist, Snapshot.DoesNotExist, Page.DoesNotExist):
+        ).get(pk=page_id, snapshot=lh_snapshot)
+    except (Site.DoesNotExist, SiteSnapshot.DoesNotExist, LHSnapshot.DoesNotExist, Page.DoesNotExist):
         return Status(404, not_found("page", str(page_id)))
 
     categories = _page_categories(page)

@@ -1,7 +1,4 @@
-import json
-import os
 import pathlib
-import tempfile
 
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -20,12 +17,11 @@ class Snapshot(TimeStampedModel, models.Model):
         COMPLETE = "complete", _("Complete")
         FAILED = "failed", _("Failed")
 
-    site = models.ForeignKey(
-        "Site",
+    snapshot = models.ForeignKey(
+        "sites.Snapshot",
         models.CASCADE,
-        related_name="snapshots",
-        verbose_name=_("Site"),
-        help_text=_("The Site this Snapshot was created from"),
+        related_name="lighthouse_snapshots",
+        verbose_name=_("Snapshot"),
     )
 
     status = models.CharField(
@@ -34,13 +30,6 @@ class Snapshot(TimeStampedModel, models.Model):
         default=Status.PENDING,
         verbose_name=_("Status"),
         db_index=True,
-    )
-
-    platform = models.CharField(
-        max_length=20,
-        default="mobile",
-        verbose_name=_("Platform"),
-        help_text=_("Emulation platform: 'mobile' or 'desktop'"),
     )
 
     page_count = models.IntegerField(
@@ -58,18 +47,12 @@ class Snapshot(TimeStampedModel, models.Model):
         help_text=_("Temporary path to the Lighthouse config file"),
     )
 
-    webhook_url = models.URLField(
-        verbose_name=_("Webhook URL"),
-        help_text=_("Optional URL to POST to when the snapshot completes"),
-        blank=True,
-    )
-
     def __str__(self):
-        return "{} ({})".format(self.site.name, self.created.strftime("%Y-%m-%d"))
+        return "{} ({})".format(self.snapshot.site.name, self.created.strftime("%Y-%m-%d"))
 
     def create_pages(self):
         from .page import Page
-        for url in self.site.get_urls():
+        for url in self.snapshot.site.get_urls():
             Page.objects.get_or_create(url=str(url), audited=False, snapshot=self)
 
     def get_page_keys(self):
@@ -154,3 +137,9 @@ class Snapshot(TimeStampedModel, models.Model):
         self.status = Snapshot.Status.COMPLETE
         self.delete_config_file()
         self.save(update_fields=["page_count", "status"])
+
+        # Mark parent snapshot complete and update site pointer
+        from sites.models import Site, Snapshot as SiteSnapshot
+        self.snapshot.status = SiteSnapshot.Status.COMPLETE
+        self.snapshot.save(update_fields=["status"])
+        Site.objects.filter(pk=self.snapshot.site_id).update(current_snapshot=self.snapshot)

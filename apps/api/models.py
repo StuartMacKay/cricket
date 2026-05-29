@@ -44,7 +44,7 @@ class APIKey(TimeStampedModel, models.Model):
     )
 
     site = models.ForeignKey(
-        "lighthouse.Site",
+        "sites.Site",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

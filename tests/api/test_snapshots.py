@@ -4,10 +4,23 @@ from unittest.mock import patch
 
 import pytest
 
-from lighthouse.models import Snapshot
-from tests.factories import SiteFactory, SnapshotCategoryFactory, SnapshotFactory
+from tests.factories import LHSnapshotFactory, SiteFactory, SnapshotCategoryFactory, SnapshotFactory
 
 pytestmark = pytest.mark.django_db
+
+PATCH_TARGETS = [
+    "lighthouse.tasks.take_lighthouse_snapshot",
+    "headers.tasks.take_header_snapshot",
+    "pageweight.tasks.take_weight_snapshot",
+]
+
+
+def patch_all_tasks():
+    """Context manager that suppresses all three audit tasks."""
+    from contextlib import ExitStack
+    stack = ExitStack()
+    mocks = [stack.enter_context(patch(t)) for t in PATCH_TARGETS]
+    return stack, mocks
 
 
 class TestListSnapshots:
@@ -62,8 +75,9 @@ class TestLatestSnapshot:
 
     def test_response_includes_categories(self, auth_client):
         site = SiteFactory()
-        snapshot = SnapshotFactory(site=site, status="complete")
-        SnapshotCategoryFactory(snapshot=snapshot, category_id="performance")
+        sites_snapshot = SnapshotFactory(site=site, status="complete")
+        lh_snapshot = LHSnapshotFactory(snapshot=sites_snapshot)
+        SnapshotCategoryFactory(snapshot=lh_snapshot, category_id="performance")
         response = auth_client.get(f"/api/sites/{site.slug}/snapshots/latest/")
         assert "categories" in response.json()
         assert "performance" in response.json()["categories"]
@@ -73,7 +87,7 @@ class TestCreateSnapshot:
     def test_returns_409_when_snapshot_in_flight(self, auth_client):
         site = SiteFactory()
         SnapshotFactory(site=site, status="running")
-        with patch("lighthouse.tasks.take_snapshot"):
+        with patch("lighthouse.tasks.take_lighthouse_snapshot"):
             response = auth_client.post(
                 f"/api/sites/{site.slug}/snapshots/",
                 content_type="application/json",
@@ -85,31 +99,37 @@ class TestCreateSnapshot:
     def test_force_bypasses_conflict_check(self, auth_client):
         site = SiteFactory()
         SnapshotFactory(site=site, status="running")
-        with patch("lighthouse.tasks.take_snapshot") as mock_task:
-            response = auth_client.post(
-                f"/api/sites/{site.slug}/snapshots/",
-                content_type="application/json",
-                data={"force": True},
-            )
+        with patch("lighthouse.tasks.take_lighthouse_snapshot"):
+            with patch("headers.tasks.take_header_snapshot"):
+                with patch("pageweight.tasks.take_weight_snapshot"):
+                    response = auth_client.post(
+                        f"/api/sites/{site.slug}/snapshots/",
+                        content_type="application/json",
+                        data={"force": True},
+                    )
         assert response.status_code == 202
 
     def test_returns_202_for_new_snapshot(self, auth_client):
         site = SiteFactory()
-        with patch("lighthouse.tasks.take_snapshot"):
-            response = auth_client.post(
-                f"/api/sites/{site.slug}/snapshots/",
-                content_type="application/json",
-                data={},
-            )
+        with patch("lighthouse.tasks.take_lighthouse_snapshot"):
+            with patch("headers.tasks.take_header_snapshot"):
+                with patch("pageweight.tasks.take_weight_snapshot"):
+                    response = auth_client.post(
+                        f"/api/sites/{site.slug}/snapshots/",
+                        content_type="application/json",
+                        data={},
+                    )
         assert response.status_code == 202
 
     def test_response_contains_poll_url(self, auth_client):
         site = SiteFactory()
-        with patch("lighthouse.tasks.take_snapshot"):
-            data = auth_client.post(
-                f"/api/sites/{site.slug}/snapshots/",
-                content_type="application/json",
-                data={},
-            ).json()
+        with patch("lighthouse.tasks.take_lighthouse_snapshot"):
+            with patch("headers.tasks.take_header_snapshot"):
+                with patch("pageweight.tasks.take_weight_snapshot"):
+                    data = auth_client.post(
+                        f"/api/sites/{site.slug}/snapshots/",
+                        content_type="application/json",
+                        data={},
+                    ).json()
         assert "poll_url" in data
         assert data["poll_url"].startswith("/api/jobs/")

@@ -1,7 +1,7 @@
 from django.http import HttpRequest
 from ninja import Router, Status
 
-from lighthouse.models import Site
+from sites.models import Site
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, not_found
 from ..schemas import SiteOut
@@ -25,7 +25,7 @@ def _site_out(site: Site) -> dict:
 @router.get("/", auth=bearer_auth, response=list[SiteOut], summary="List sites")
 def list_sites(request: HttpRequest):
     api_key = request.auth
-    qs = Site.objects.order_by("name").select_related("current_snapshot")
+    qs = Site.objects.order_by("name")
     if api_key and api_key.site_id:
         qs = qs.filter(pk=api_key.site_id)
     return [_site_out(s) for s in qs]
@@ -35,7 +35,7 @@ def list_sites(request: HttpRequest):
 def get_site(request: HttpRequest, slug: str):
     api_key = request.auth
     try:
-        site = Site.objects.select_related("current_snapshot").get(slug=slug)
+        site = Site.objects.get(slug=slug)
     except Site.DoesNotExist:
         return Status(404, not_found("site", slug))
 

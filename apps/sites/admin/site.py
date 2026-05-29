@@ -1,4 +1,4 @@
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.contrib.admin import register
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -16,18 +16,18 @@ class SiteAdmin(admin.ModelAdmin):
     ordering = ("-created",)
     search_fields = ("name", "url")
     readonly_fields = ("created", "modified", "snapped", "current_snapshot")
-    actions = ["create_snapshot"]
+    actions = ["trigger_snapshot"]
 
     formfield_overrides = {
         models.JSONField: {"widget": JSONEditorWidget},
     }
 
-    def create_snapshot(self, request, queryset):
+    def trigger_snapshot(self, request, queryset):
         for site in queryset:
             take_site_snapshot.delay(site.pk)
-            messages.info(
+            self.message_user(
                 request,
-                _("Creating snapshot of %(name)s") % {"name": site.name},
+                _("Snapshot queued for %(name)s") % {"name": site.name},
             )
 
-    create_snapshot.short_description = "Create Snapshot of selected Sites"
+    trigger_snapshot.short_description = "Trigger snapshot for selected sites"
