@@ -77,7 +77,7 @@ class PageHeaders(TimeStampedModel, models.Model):
                 self.url,
                 timeout=TIMEOUT,
                 allow_redirects=True,
-                headers={"User-Agent": "django-lighthouse/1.0 headers-audit"},
+                headers={"User-Agent": "cricket/1.0 headers-audit"},
             )
             # Collect redirect chain
             self.redirect_count = len(response.history)

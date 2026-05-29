@@ -3,7 +3,7 @@ from ninja import NinjaAPI
 from .routers import audits, feedback, introspection, jobs, pages, sites, snapshots
 
 api = NinjaAPI(
-    title="Django Lighthouse API",
+    title="Cricket API",
     version="1.0",
     description="Agent-native REST API for Lighthouse audit data",
     urls_namespace="api",

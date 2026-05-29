@@ -8,7 +8,7 @@ router = Router(tags=["introspection"])
 def api_root(request: HttpRequest):
     """Human-readable entry point listing all available endpoints."""
     return {
-        "description": "Django Lighthouse agent-native API",
+        "description": "Cricket agent-native API",
         "endpoints": {
             "agent_context": request.build_absolute_uri("/api/agent-context/"),
             "schema": request.build_absolute_uri("/api/schema/"),

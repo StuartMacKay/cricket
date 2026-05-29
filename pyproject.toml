@@ -1,5 +1,5 @@
 [project]
-name = "django-lighthouse"
+name = "cricket"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
@@ -39,13 +39,8 @@ tests = [
     "time-machine",
     "pytest-httpserver",
 ]
-docs = [
-    "sphinx",
-    "sphinx-rtd-theme",
-]
 dev = [
     { include-group = "tests" },
-    { include-group = "docs" },
     "bump-my-version",
     "django-debug-toolbar",
     "flower",

@@ -1,7 +1,7 @@
-# Agent Skills — Django Lighthouse API
+# Agent Skills — Cricket API
 
 This document describes how to accomplish the primary tasks using the
-Django Lighthouse API.  Read `GET /api/agent-context/` first to confirm
+Cricket API.  Read `GET /api/agent-context/` first to confirm
 endpoint URLs and filter parameters for the version you are talking to.
 
 ---
