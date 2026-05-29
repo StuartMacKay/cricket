@@ -9,6 +9,7 @@
   "dependencies": {
     "chrome-launcher": "^1.2.1",
     "fs": "^0.0.1-security",
-    "lighthouse": "^13.3.0"
+    "lighthouse": "^13.3.0",
+    "puppeteer": "^23.0.0"
   }
 }
