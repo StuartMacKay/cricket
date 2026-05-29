@@ -49,7 +49,7 @@ FROM system AS dependencies
 
 COPY --chown=python:python pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-install-project --no-group dev --no-group docs --no-group tests
+RUN uv sync --frozen --no-install-project --no-group dev --no-group tests
 
 # ###############
 #   Development
