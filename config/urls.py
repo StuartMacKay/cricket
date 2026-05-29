@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from core.views import IndexView, RobotsView
+from api.api import api
 
 urlpatterns = [
     path("", IndexView.as_view(), name="index"),
@@ -18,6 +19,7 @@ urlpatterns += [
     path("robots.txt", RobotsView.as_view()),
     path("watchman/", include("watchman.urls")),
     path("audits/", include("lighthouse.urls")),
+    path("api/", api.urls),
 ]
 
 if settings.DEBUG:

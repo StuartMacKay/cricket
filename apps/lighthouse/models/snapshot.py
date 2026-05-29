@@ -58,6 +58,12 @@ class Snapshot(TimeStampedModel, models.Model):
         help_text=_("Temporary path to the Lighthouse config file"),
     )
 
+    webhook_url = models.URLField(
+        verbose_name=_("Webhook URL"),
+        help_text=_("Optional URL to POST to when the snapshot completes"),
+        blank=True,
+    )
+
     def __str__(self):
         return "{} ({})".format(self.site.name, self.created.strftime("%Y-%m-%d"))
 

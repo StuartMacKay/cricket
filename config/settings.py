@@ -56,6 +56,9 @@ INSTALLED_APPS = [
     "django_json_widget",
     "watchman",
     "lighthouse",
+    "api",
+    "headers",
+    "pageweight",
 ]
 
 MIDDLEWARE = [
