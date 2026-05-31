@@ -72,8 +72,9 @@ Per-tool endpoints remain for tool-specific result detail.
 ## Stage 0 — Foundation refinements (current priority)
 
 - **SQLite vs PostgreSQL**: Evaluate whether SQLite is sufficient. PostgreSQL handles
-  concurrent Celery writes well; SQLite would reduce deployment friction. Decide before
-  the deployment story solidifies.
+  concurrent Celery writes well; SQLite would reduce deployment friction. The number of
+  concurrent database writes equals the number of Celery workers, so SQLite is viable
+  as long as worker count is controlled. Decide before the deployment story solidifies.
 - **Rename Snapshot → Scan throughout**: models, tasks, API, admin, tests, templates.
   This is a mechanical rename but touches every app. Do it as a single focused commit.
 - **Introduce `sites.Page`**: add the shared page model, update the three existing

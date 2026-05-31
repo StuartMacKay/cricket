@@ -77,6 +77,20 @@ in the same list with no indication they are incomparable. An `environment` fiel
 on `sites.Scan` (populated from `Site.extra_config["environment"]`) makes
 provenance explicit. The API exposes `?environment=` as a filter.
 
+### Worker count controls both database concurrency and request rate
+
+The number of concurrent database writes equals the number of Celery workers — no
+more, no less. This makes worker count a single lever with two desirable effects:
+keeping it low protects SQLite from write contention, and keeping it low also
+throttles the rate of HTTP requests to the target site, avoiding excessive load or
+being blocked.
+
+The practical consequence is that worker count should be configurable per deployment
+context rather than fixed. A local development server can be hammered with many
+workers for fast scans. A production or staging site warrants a low worker count to
+remain polite. This can be controlled via the `--concurrency` flag when starting the
+worker, or via an environment variable, without any code changes.
+
 ### Multiple Site objects for different collection cadences
 
 Different tools benefit from different schedules — Lighthouse audits are
