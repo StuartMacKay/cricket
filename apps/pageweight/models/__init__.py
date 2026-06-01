@@ -1,4 +1,4 @@
-from .page import Page, Resource
-from .snapshot import Snapshot
+from .page import PageData, Resource
+from .run import Run
 
-__all__ = ("Page", "Resource", "Snapshot")
+__all__ = ("PageData", "Resource", "Run")

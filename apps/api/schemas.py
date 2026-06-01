@@ -21,11 +21,11 @@ class SiteOut(Schema):
     platform: str
     snapped: Optional[datetime]
     crontab: str
-    current_snapshot_id: Optional[int]
+    current_scan_id: Optional[int]
 
 
 # ---------------------------------------------------------------------------
-# Snapshots
+# Scans
 # ---------------------------------------------------------------------------
 
 
@@ -37,21 +37,22 @@ class CategorySummary(Schema):
     good: int
 
 
-class SnapshotOut(Schema):
+class ScanOut(Schema):
     id: int
     created: datetime
     status: str
     platform: str
+    environment: str
     page_count: Optional[int]
     categories: dict[str, CategorySummary]
 
 
-class SnapshotTriggerIn(Schema):
+class ScanTriggerIn(Schema):
     force: bool = False
     webhook_url: Optional[str] = None
 
 
-class SnapshotTriggerOut(Schema):
+class ScanTriggerOut(Schema):
     id: int
     status: str
     existing: bool

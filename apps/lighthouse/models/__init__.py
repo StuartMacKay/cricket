@@ -1,15 +1,13 @@
-from .audit import AuditDefinition, PageAudit, PageCategory, SnapshotAudit, SnapshotCategory
-from .page import Page
+from .audit import AuditDefinition, PageAudit, PageCategory
+from .page import PageResult
 from .rating import Rating
-from .snapshot import Snapshot
+from .run import Run
 
 __all__ = (
     "AuditDefinition",
-    "Page",
     "PageAudit",
     "PageCategory",
+    "PageResult",
     "Rating",
-    "Snapshot",
-    "SnapshotAudit",
-    "SnapshotCategory",
+    "Run",
 )

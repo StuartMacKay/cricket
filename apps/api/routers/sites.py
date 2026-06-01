@@ -18,7 +18,7 @@ def _site_out(site: Site) -> dict:
         "platform": site.platform,
         "snapped": site.snapped,
         "crontab": site.crontab,
-        "current_snapshot_id": site.current_snapshot_id,
+        "current_scan_id": site.current_scan_id,
     }
 
 

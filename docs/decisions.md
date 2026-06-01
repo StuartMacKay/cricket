@@ -40,6 +40,28 @@ tool are a feature, not a deficiency.
 
 ---
 
+## 2026-06-01
+
+### Stage 0 and Stage 1 model changes applied
+
+All model changes from Stage 0 and Stage 1 of the development plan are implemented in the initial migrations; no incremental migrations exist.
+
+**Rename Snapshot → Scan / Snapshot → Run:** `sites.Snapshot` → `sites.Scan`; per-tool `Snapshot` models → `Run` (lighthouse, headers, pageweight). Reflects that cricket actively scans sites rather than passively snapshotting them. All related names, admin classes, task names, and API URLs updated accordingly. API moves from `/snapshots/` to `/scans/`.
+
+**Shared page list via sites.Page:** `sites.Page(scan, url)` replaces three separate per-tool page models (`lighthouse.Page`, `headers.Page`, `pageweight.Page`). Pages are created once by `take_site_scan` before tool tasks are dispatched. All per-tool result models reference `sites.Page` via FK.
+
+**lighthouse.Page split into PageResult + PageCategory + PageAudit:** The old `lighthouse.Page` held both the URL (now in `sites.Page`) and audit results. Audit results (PageCategory, PageAudit) now FK to `sites.Page`. Report files and the `audited` flag move to `lighthouse.PageResult` (OneToOneField on `sites.Page`).
+
+**Pre-aggregation removed:** `SnapshotCategory` and `SnapshotAudit` and the `collect_metrics()` aggregation step are deleted. The API computes category summaries on demand from `PageCategory`. `lighthouse.Run.complete()` replaces the completion-signalling half of the old `collect_metrics()`.
+
+**pageweight.Resource.page re-pointed:** `Resource.page` FK moves from `pageweight.Page` to `sites.Page`, consistent with all other per-tool result models.
+
+**Stage 1 — per-tool enable flags:** `Site.enable_lighthouse`, `enable_headers`, `enable_pageweight`, `enable_toolbar` (defaults True/True/True/False). `take_site_scan` dispatches only enabled tools.
+
+**Stage 1 — environment field on Scan:** `Scan.environment` CharField populated from `Site.extra_config["environment"]` at scan creation. API exposes `?environment=` filter on the scans list endpoint.
+
+---
+
 ## 2026-05-31
 
 ### Snapshot renamed to Scan

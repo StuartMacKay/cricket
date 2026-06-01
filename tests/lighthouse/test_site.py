@@ -2,15 +2,15 @@
 Unit tests for the Site model and its manager.
 
 Covers:
-  SiteManager.overdue()   – which sites are due for a new snapshot
-  Site.create_snapshot()  – snapshot creation and config-file handling
+  SiteManager.overdue()  – which sites are due for a new scan
+  Site.create_scan()     – scan creation and timestamp handling
 """
 
 import pytest
 import time_machine
 from django.utils import timezone
 
-from sites.models import Site, Snapshot
+from sites.models import Scan, Site
 from tests.factories import SiteFactory
 
 pytestmark = pytest.mark.django_db
@@ -62,7 +62,6 @@ class TestSiteManagerOverdue:
             not_due = SiteFactory(crontab="0 * * * *", snapped=timezone.now())
 
         with time_machine.travel("2024-01-01 02:00:00 UTC", tick=False):
-            # Bring not_due up to date so it's no longer overdue
             not_due.snapped = timezone.now()
             not_due.save()
             result = Site.objects.overdue()
@@ -72,50 +71,60 @@ class TestSiteManagerOverdue:
 
 
 # ---------------------------------------------------------------------------
-# Site.create_snapshot()
+# Site.create_scan()
 # ---------------------------------------------------------------------------
 
 
-class TestSiteCreateSnapshot:
-    def test_returns_a_snapshot_instance(self):
+class TestSiteCreateScan:
+    def test_returns_a_scan_instance(self):
         site = SiteFactory()
-        assert isinstance(site.create_snapshot(), Snapshot)
+        assert isinstance(site.create_scan(), Scan)
 
-    def test_snapshot_is_linked_to_the_site(self):
+    def test_scan_is_linked_to_the_site(self):
         site = SiteFactory()
-        snapshot = site.create_snapshot()
-        assert snapshot.site == site
+        scan = site.create_scan()
+        assert scan.site == site
 
-    def test_snapshot_is_persisted_to_the_database(self):
+    def test_scan_is_persisted_to_the_database(self):
         site = SiteFactory()
-        snapshot = site.create_snapshot()
-        assert Snapshot.objects.filter(pk=snapshot.pk).exists()
+        scan = site.create_scan()
+        assert Scan.objects.filter(pk=scan.pk).exists()
 
     def test_site_snapped_timestamp_is_updated(self):
         site = SiteFactory(snapped=None)
         before = timezone.now()
-        site.create_snapshot()
+        site.create_scan()
         site.refresh_from_db()
         assert site.snapped is not None
         assert site.snapped >= before
 
-    def test_each_call_creates_a_new_snapshot(self):
+    def test_each_call_creates_a_new_scan(self):
         site = SiteFactory()
-        site.create_snapshot()
-        site.create_snapshot()
-        assert site.snapshots.count() == 2
+        site.create_scan()
+        site.create_scan()
+        assert site.scans.count() == 2
 
-    def test_snapshot_platform_defaults_to_mobile(self):
+    def test_scan_platform_defaults_to_mobile(self):
         site = SiteFactory()
-        snapshot = site.create_snapshot()
-        assert snapshot.platform == "mobile"
+        scan = site.create_scan()
+        assert scan.platform == "mobile"
 
-    def test_snapshot_platform_reflects_site_platform(self):
+    def test_scan_platform_reflects_site_platform(self):
         site = SiteFactory(platform="desktop")
-        snapshot = site.create_snapshot()
-        assert snapshot.platform == "desktop"
+        scan = site.create_scan()
+        assert scan.platform == "desktop"
 
-    def test_snapshot_status_is_pending(self):
+    def test_scan_status_is_pending(self):
         site = SiteFactory()
-        snapshot = site.create_snapshot()
-        assert snapshot.status == Snapshot.Status.PENDING
+        scan = site.create_scan()
+        assert scan.status == Scan.Status.PENDING
+
+    def test_environment_populated_from_extra_config(self):
+        site = SiteFactory(extra_config={"environment": "staging"})
+        scan = site.create_scan()
+        assert scan.environment == "staging"
+
+    def test_environment_empty_when_not_in_extra_config(self):
+        site = SiteFactory(extra_config={})
+        scan = site.create_scan()
+        assert scan.environment == ""

@@ -14,9 +14,9 @@ everything through an agent-native REST API.
 | `pageweight` | Puppeteer | Transfer size by resource type |
 
 Every audit is attached to a **Site** (a URL + sitemap + cron schedule).
-Running an audit creates a **Snapshot** that groups all the per-page results
-at that point in time. Snapshots can be compared to track improvements or
-regressions over time.
+Running an audit creates a **Scan** that groups all per-page results at that
+point in time. Scans can be compared to track improvements or regressions
+over time.
 
 ## Stack
 
@@ -52,8 +52,8 @@ dashboard at <http://localhost:5555>.
    day of each month.
 5. Check **Enabled** and save.
 
-To trigger an immediate audit, select the site and choose **Create snapshot**
-from the *Actions* dropdown, or `POST /api/sites/{slug}/snapshots/`.
+To trigger an immediate audit, select the site and choose **Trigger scan**
+from the *Actions* dropdown, or `POST /api/sites/{slug}/scans/`.
 
 ## API
 
@@ -63,12 +63,12 @@ webhooks, and a machine-readable context document at `GET /api/agent-context/`.
 ```
 GET  /api/sites/
 GET  /api/sites/{slug}/
-GET  /api/sites/{slug}/snapshots/
-GET  /api/sites/{slug}/snapshots/latest/
-POST /api/sites/{slug}/snapshots/
-GET  /api/sites/{slug}/snapshots/{id}/
-GET  /api/sites/{slug}/snapshots/{id}/pages/
-GET  /api/sites/{slug}/snapshots/{id}/pages/{page_id}/
+GET  /api/sites/{slug}/scans/
+GET  /api/sites/{slug}/scans/latest/
+POST /api/sites/{slug}/scans/
+GET  /api/sites/{slug}/scans/{id}/
+GET  /api/sites/{slug}/scans/{id}/pages/
+GET  /api/sites/{slug}/scans/{id}/pages/{page_id}/
 GET  /api/audits/
 GET  /api/jobs/{id}/
 POST /api/feedback/

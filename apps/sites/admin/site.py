@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django_json_widget.widgets import JSONEditorWidget
 
 from ..models import Site
-from ..tasks import take_site_snapshot
+from ..tasks import take_site_scan
 
 
 @register(Site)
@@ -15,19 +15,19 @@ class SiteAdmin(admin.ModelAdmin):
     list_filter = ("enabled", "platform")
     ordering = ("-created",)
     search_fields = ("name", "url")
-    readonly_fields = ("created", "modified", "snapped", "current_snapshot")
-    actions = ["trigger_snapshot"]
+    readonly_fields = ("created", "modified", "snapped", "current_scan")
+    actions = ["trigger_scan"]
 
     formfield_overrides = {
         models.JSONField: {"widget": JSONEditorWidget},
     }
 
-    def trigger_snapshot(self, request, queryset):
+    def trigger_scan(self, request, queryset):
         for site in queryset:
-            take_site_snapshot.delay(site.pk)
+            take_site_scan.delay(site.pk)
             self.message_user(
                 request,
-                _("Snapshot queued for %(name)s") % {"name": site.name},
+                _("Scan queued for %(name)s") % {"name": site.name},
             )
 
-    trigger_snapshot.short_description = "Trigger snapshot for selected sites"
+    trigger_scan.short_description = "Trigger scan for selected sites"

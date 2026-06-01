@@ -15,26 +15,24 @@ PAGEWEIGHT_SCRIPT = os.path.join(settings.NODE_DIR, "src", "pageweight.js")
 RESOURCE_TYPES = ["document", "stylesheet", "script", "image", "font", "other"]
 
 
-class Page(TimeStampedModel, models.Model):
+class PageData(TimeStampedModel, models.Model):
     """Page weight summary for a single URL."""
 
     class Meta:
-        verbose_name = _("Page")
-        verbose_name_plural = _("Pages")
+        verbose_name = _("Page Data")
+        verbose_name_plural = _("Page Data")
         ordering = ["-total_transfer_size"]
         indexes = [
-            models.Index(fields=["snapshot", "url"]),
-            models.Index(fields=["snapshot", "total_transfer_size"]),
+            models.Index(fields=["page", "total_transfer_size"], name="pw_pagedata_page_transfer_idx"),
         ]
 
-    snapshot = models.ForeignKey(
-        "Snapshot",
+    page = models.OneToOneField(
+        "sites.Page",
         on_delete=models.CASCADE,
-        related_name="pages",
-        verbose_name=_("Snapshot"),
+        related_name="pageweight_data",
+        verbose_name=_("Page"),
     )
 
-    url = models.URLField(max_length=2000, verbose_name=_("URL"))
     final_url = models.URLField(max_length=2000, blank=True, verbose_name=_("Final URL"))
 
     measured = models.BooleanField(
@@ -74,17 +72,18 @@ class Page(TimeStampedModel, models.Model):
     error = models.TextField(blank=True, verbose_name=_("Error"))
 
     def __str__(self):
-        return self.url
+        return str(self.page)
 
     def measure(self):
         """Run the Puppeteer script and populate this row plus Resource rows."""
-        extra = {"url": self.url, "snapshot": self.snapshot_id}
+        url = self.page.url
+        platform = self.page.scan.site.platform
+        extra = {"url": url, "page": self.page_id}
         log.info("Page weight measurement started", extra=extra)
 
-        platform = self.snapshot.snapshot.platform
         try:
             result = subprocess.run(
-                [PAGEWEIGHT_SCRIPT, self.url, f"--device={platform}"],
+                [PAGEWEIGHT_SCRIPT, url, f"--device={platform}"],
                 capture_output=True,
                 timeout=120,
             )
@@ -130,10 +129,10 @@ class Page(TimeStampedModel, models.Model):
 
         self.save()
 
-        Resource.objects.filter(page=self).delete()
+        Resource.objects.filter(page=self.page).delete()
         resources = [
             Resource(
-                page=self,
+                page=self.page,
                 url=r["url"][:2000],
                 resource_type=r.get("type", "other"),
                 mime_type=r.get("mimeType", "")[:100],
@@ -153,12 +152,12 @@ class Resource(models.Model):
         verbose_name = _("Resource")
         verbose_name_plural = _("Resources")
         indexes = [
-            models.Index(fields=["page", "resource_type"]),
-            models.Index(fields=["page", "transfer_size"]),
+            models.Index(fields=["page", "resource_type"], name="pw_resource_page_type_idx"),
+            models.Index(fields=["page", "transfer_size"], name="pw_resource_page_transfer_idx"),
         ]
 
     page = models.ForeignKey(
-        Page,
+        "sites.Page",
         on_delete=models.CASCADE,
         related_name="resources",
         verbose_name=_("Page"),

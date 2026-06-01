@@ -59,14 +59,14 @@ class PageCategory(models.Model):
         verbose_name_plural = _("Page Categories")
         unique_together = [("page", "category_id")]
         indexes = [
-            models.Index(fields=["category_id", "score"]),
-            models.Index(fields=["category_id", "rating"]),
+            models.Index(fields=["category_id", "score"], name="lh_pagecat_cat_score_idx"),
+            models.Index(fields=["category_id", "rating"], name="lh_pagecat_cat_rating_idx"),
         ]
 
     page = models.ForeignKey(
-        "Page",
+        "sites.Page",
         on_delete=models.CASCADE,
-        related_name="categories",
+        related_name="lighthouse_categories",
         verbose_name=_("Page"),
     )
 
@@ -103,13 +103,13 @@ class PageAudit(models.Model):
         verbose_name_plural = _("Page Audits")
         unique_together = [("page", "audit")]
         indexes = [
-            models.Index(fields=["audit", "rating"]),
+            models.Index(fields=["audit", "rating"], name="lh_pageaudit_audit_rating_idx"),
         ]
 
     page = models.ForeignKey(
-        "Page",
+        "sites.Page",
         on_delete=models.CASCADE,
-        related_name="audits",
+        related_name="lighthouse_audits",
         verbose_name=_("Page"),
     )
 
@@ -149,7 +149,6 @@ class PageAudit(models.Model):
         verbose_name=_("Units"),
     )
 
-    # Failing items from the audit details section
     details = models.JSONField(
         null=True,
         blank=True,
@@ -159,82 +158,3 @@ class PageAudit(models.Model):
 
     def __str__(self):
         return f"{self.page} — {self.audit_id}: {self.rating}"
-
-
-class SnapshotCategory(models.Model):
-    """Aggregated category results across all pages in a snapshot."""
-
-    class Meta:
-        verbose_name = _("Snapshot Category")
-        verbose_name_plural = _("Snapshot Categories")
-        unique_together = [("snapshot", "category_id")]
-        ordering = ["category_id"]
-
-    snapshot = models.ForeignKey(
-        "Snapshot",
-        on_delete=models.CASCADE,
-        related_name="category_results",
-        verbose_name=_("Snapshot"),
-    )
-
-    category_id = models.CharField(
-        max_length=50,
-        verbose_name=_("Category ID"),
-    )
-
-    title = models.CharField(
-        max_length=100,
-        verbose_name=_("Title"),
-    )
-
-    poor_count = models.IntegerField(default=0, verbose_name=_("Poor count"))
-    needs_count = models.IntegerField(default=0, verbose_name=_("Needs Improvement count"))
-    good_count = models.IntegerField(default=0, verbose_name=_("Good count"))
-
-    score_avg = models.FloatField(
-        null=True,
-        blank=True,
-        verbose_name=_("Average score"),
-    )
-
-    def __str__(self):
-        return f"{self.snapshot} — {self.category_id}"
-
-    @property
-    def total(self):
-        return self.poor_count + self.needs_count + self.good_count
-
-
-class SnapshotAudit(models.Model):
-    """Aggregated audit results across all pages in a snapshot."""
-
-    class Meta:
-        verbose_name = _("Snapshot Audit")
-        verbose_name_plural = _("Snapshot Audits")
-        unique_together = [("snapshot", "audit")]
-        ordering = ["audit__category_id", "audit__audit_id"]
-
-    snapshot = models.ForeignKey(
-        "Snapshot",
-        on_delete=models.CASCADE,
-        related_name="audit_results",
-        verbose_name=_("Snapshot"),
-    )
-
-    audit = models.ForeignKey(
-        AuditDefinition,
-        on_delete=models.CASCADE,
-        related_name="snapshot_audits",
-        verbose_name=_("Audit"),
-    )
-
-    poor_count = models.IntegerField(default=0, verbose_name=_("Poor count"))
-    needs_count = models.IntegerField(default=0, verbose_name=_("Needs Improvement count"))
-    good_count = models.IntegerField(default=0, verbose_name=_("Good count"))
-
-    def __str__(self):
-        return f"{self.snapshot} — {self.audit_id}"
-
-    @property
-    def total(self):
-        return self.poor_count + self.needs_count + self.good_count

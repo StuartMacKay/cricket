@@ -1,1 +1,1 @@
-from . import site, snapshot  # noqa: F401
+from . import scan, site  # noqa: F401

@@ -4,8 +4,8 @@ from django.http import HttpRequest
 from django.urls import reverse
 from ninja import Path, Query, Router, Status
 
-from lighthouse.models import Page, Snapshot as LighthouseSnapshot
-from sites.models import Site, Snapshot as SiteSnapshot
+from lighthouse.models import PageCategory, PageResult
+from sites.models import Page, Site, Scan
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, invalid_field, not_found
 from ..pagination import DEFAULT_LIMIT, paginate
@@ -18,25 +18,36 @@ VALID_CATEGORIES = ["performance", "accessibility", "best-practices", "seo"]
 
 
 def _html_report_url(request: HttpRequest, page: Page) -> Optional[str]:
-    if page.html_report:
-        return request.build_absolute_uri(
-            reverse("admin:lighthouse-page-report", kwargs={"pk": page.pk})
-        )
+    try:
+        result = page.lighthouse_result
+        if result.html_report:
+            return request.build_absolute_uri(
+                reverse("admin:lighthouse-page-report", kwargs={"pk": result.pk})
+            )
+    except PageResult.DoesNotExist:
+        pass
     return None
 
 
 def _page_categories(page: Page) -> dict:
     return {
         cat.category_id: {"score": cat.score, "rating": cat.rating}
-        for cat in page.categories.all()
+        for cat in page.lighthouse_categories.all()
     }
 
 
-@router.get("/", auth=bearer_auth, response={200: PaginatedOut, 404: ErrorResponse, 422: ErrorResponse}, summary="List pages for a snapshot")
+def _page_audited(page: Page) -> bool:
+    try:
+        return page.lighthouse_result.audited
+    except PageResult.DoesNotExist:
+        return False
+
+
+@router.get("/", auth=bearer_auth, response={200: PaginatedOut, 404: ErrorResponse, 422: ErrorResponse}, summary="List pages for a scan")
 def list_pages(
     request: HttpRequest,
     slug: Annotated[str, Path(...)],
-    snapshot_id: Annotated[int, Path(...)],
+    scan_id: Annotated[int, Path(...)],
     rating: Optional[str] = Query(None, description="Filter by rating: poor, needs-improvement, good"),
     category: Optional[str] = Query(None, description="Filter by category"),
     audit: Optional[str] = Query(None, description="Filter by audit ID"),
@@ -50,34 +61,30 @@ def list_pages(
 
     try:
         site = Site.objects.get(slug=slug)
-        sites_snapshot = SiteSnapshot.objects.get(pk=snapshot_id, site=site)
-    except (Site.DoesNotExist, SiteSnapshot.DoesNotExist):
-        return Status(404, not_found("snapshot", str(snapshot_id)))
-
-    lh_snapshot = sites_snapshot.lighthouse_snapshots.first()
-    if not lh_snapshot:
-        return Status(404, not_found("snapshot", str(snapshot_id)))
+        scan = Scan.objects.get(pk=scan_id, site=site)
+    except (Site.DoesNotExist, Scan.DoesNotExist):
+        return Status(404, not_found("scan", str(scan_id)))
 
     qs = (
-        Page.objects.filter(snapshot=lh_snapshot, audited=True)
-        .prefetch_related("categories")
+        Page.objects.filter(scan=scan)
+        .prefetch_related("lighthouse_categories")
         .order_by("url")
     )
 
     if category and rating:
         qs = qs.filter(
-            categories__category_id=category,
-            categories__rating=rating,
+            lighthouse_categories__category_id=category,
+            lighthouse_categories__rating=rating,
         ).distinct()
     elif category:
-        qs = qs.filter(categories__category_id=category).distinct()
+        qs = qs.filter(lighthouse_categories__category_id=category).distinct()
     elif audit and rating:
         qs = qs.filter(
-            audits__audit__audit_id=audit,
-            audits__rating=rating,
+            lighthouse_audits__audit__audit_id=audit,
+            lighthouse_audits__rating=rating,
         ).distinct()
     elif audit:
-        qs = qs.filter(audits__audit__audit_id=audit).distinct()
+        qs = qs.filter(lighthouse_audits__audit__audit_id=audit).distinct()
 
     hints = []
     if not rating:
@@ -91,7 +98,7 @@ def list_pages(
         {
             "id": page.pk,
             "url": page.url,
-            "audited": page.audited,
+            "audited": _page_audited(page),
             "html_report_url": _html_report_url(request, page),
             "categories": _page_categories(page),
         }
@@ -101,23 +108,20 @@ def list_pages(
 
 
 @router.get("/{page_id}/", auth=bearer_auth, response={200: PageDetailOut, 404: ErrorResponse}, summary="Get a page with full audit detail")
-def get_page(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot_id: Annotated[int, Path(...)], page_id: int):
+def get_page(request: HttpRequest, slug: Annotated[str, Path(...)], scan_id: Annotated[int, Path(...)], page_id: int):
     try:
         site = Site.objects.get(slug=slug)
-        sites_snapshot = SiteSnapshot.objects.get(pk=snapshot_id, site=site)
-        lh_snapshot = sites_snapshot.lighthouse_snapshots.first()
-        if not lh_snapshot:
-            raise LighthouseSnapshot.DoesNotExist
+        scan = Scan.objects.get(pk=scan_id, site=site)
         page = Page.objects.prefetch_related(
-            "categories", "audits__audit"
-        ).get(pk=page_id, snapshot=lh_snapshot)
-    except (Site.DoesNotExist, SiteSnapshot.DoesNotExist, LighthouseSnapshot.DoesNotExist, Page.DoesNotExist):
+            "lighthouse_categories", "lighthouse_audits__audit"
+        ).get(pk=page_id, scan=scan)
+    except (Site.DoesNotExist, Scan.DoesNotExist, Page.DoesNotExist):
         return Status(404, not_found("page", str(page_id)))
 
     categories = _page_categories(page)
 
     audits = {}
-    for page_audit in page.audits.select_related("audit").all():
+    for page_audit in page.lighthouse_audits.select_related("audit").all():
         audit_def = page_audit.audit
         audits[audit_def.audit_id] = {
             "title": audit_def.title,
@@ -133,7 +137,7 @@ def get_page(request: HttpRequest, slug: Annotated[str, Path(...)], snapshot_id:
     return {
         "id": page.pk,
         "url": page.url,
-        "audited": page.audited,
+        "audited": _page_audited(page),
         "html_report_url": _html_report_url(request, page),
         "categories": categories,
         "audits": audits,

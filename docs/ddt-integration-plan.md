@@ -1,16 +1,5 @@
 # Django Debug Toolbar Integration Plan
 
-> **Terminology note**: this document was written before several architectural
-> decisions were made. When reading it, apply these substitutions:
-> - `Snapshot` → `Scan` (sites.Snapshot → sites.Scan)
-> - `lighthouse.Snapshot` / `headers.Snapshot` etc. → `lighthouse.Run` / `headers.Run`
-> - `debugtoolbar.Page` → `debugtoolbar.PageData` with FK to `sites.Page`
-> - `/snapshots/` in API paths → `/scans/`
-> - `take_site_snapshot` → `take_site_scan`
->
-> The implementation detail (companion package, security, data retention, panel
-> selection) remains valid. Update this document when Stage 2 implementation begins.
-
 ## Overview
 
 This document analyses whether collecting django-debug-toolbar (DDT) data fits within
@@ -35,22 +24,22 @@ alongside lighthouse, headers, and pageweight.
 Each of the three current collectors follows an identical structure:
 
 ```
-sites.Snapshot (parent)
-  └── <app>.Snapshot (status, page_count)
-        └── <app>.Page (url, collected, data fields or JSONField)
+sites.Scan (parent)
+  └── <app>.Run (status, page_count)
+        └── <app>.PageData (page = FK(sites.Page), collected, data fields or JSONField)
 ```
 
 Tasks use Celery chords: a group of per-page tasks → a completion aggregator. All three
-dispatchers are called in parallel from `sites.tasks.take_site_snapshot()`.
+dispatchers are called in parallel from `sites.tasks.take_site_scan()`.
 
 ### Where DDT fits
 
 A `debugtoolbar` app would slot in as a fourth entry in this pattern:
 
-- `debugtoolbar.Snapshot` → FK to `sites.Snapshot`
-- `debugtoolbar.Page` → FK to `debugtoolbar.Snapshot`, stores panel data
-- `debugtoolbar.tasks.take_toolbar_snapshot` dispatched from `take_site_snapshot`
-- An API router at `/api/sites/{slug}/snapshots/{id}/toolbar/`
+- `debugtoolbar.Run` → FK to `sites.Scan`
+- `debugtoolbar.PageData` → FK to `sites.Page`, stores panel data
+- `debugtoolbar.tasks.take_toolbar_scan` dispatched from `take_site_scan`
+- An API router at `/api/sites/{slug}/scans/{id}/toolbar/`
 
 No existing pattern needs to change. The only modification is adding one `.delay()` call
 in `sites/tasks.py`.
@@ -183,7 +172,7 @@ making query counts a reliable signal of regressions even when collected locally
 
 ### The problem this work exposes
 
-Currently every `sites.Snapshot` triggers all three collectors. The DDT integration
+Currently every `sites.Scan` triggers all three collectors. The DDT integration
 introduces a case where different metrics have naturally different collection frequencies:
 
 - **Page load timing** (pageweight): hourly, to increase sample sizes and detect regressions quickly.
@@ -208,18 +197,18 @@ differ (hourly monitoring on just 10 key pages, full audit on all 500).
 
 **Disadvantages**: Duplicates URL/sitemap configuration when the page set is the same.
 The API returns two separate sites; cross-collector comparison requires knowing to join
-on URL rather than on snapshot.
+on URL rather than on scan.
 
 #### Model B: One Site with per-collector schedules
 
 One Site object but each collector has its own crontab and independently creates child
-snapshots that are not necessarily grouped under a single parent snapshot.
+scans that are not necessarily grouped under a single parent scan.
 
 **Advantages**: Clean data model when the page set is shared. One site in the API, but
-multiple independent snapshot series (one for lighthouse, one for pageweight, one for DDT).
+multiple independent scan series (one for lighthouse, one for pageweight, one for DDT).
 
-**Disadvantages**: Significant change to the current architecture. The `sites.Snapshot`
-parent-as-coordinator model would need rethinking. The snapshot grouping currently provides
+**Disadvantages**: Significant change to the current architecture. The `sites.Scan`
+parent-as-coordinator model would need rethinking. The scan grouping currently provides
 the "point in time" view; per-collector independence removes that.
 
 ### Decision
@@ -239,16 +228,16 @@ enable_pageweight = BooleanField(default=True)
 enable_toolbar = BooleanField(default=False)  # DDT — local only
 ```
 
-`take_site_snapshot` checks each flag before dispatching. This is a small change and
+`take_site_scan` checks each flag before dispatching. This is a small change and
 also makes the existing three collectors explicitly opt-out rather than always-on, which
 improves clarity.
 
 ### Future path to Model B
 
-If Model B becomes desirable, the key change is replacing the single `sites.Snapshot`
-parent coordinator with per-collector snapshot series that each have their own `Site`
-association and schedule. The parent snapshot would become optional metadata ("these
-child snapshots were triggered together") rather than a required coordinator. This is
+If Model B becomes desirable, the key change is replacing the single `sites.Scan`
+parent coordinator with per-collector scan series that each have their own `Site`
+association and schedule. The parent scan would become optional metadata ("these
+child scans were triggered together") rather than a required coordinator. This is
 a larger refactor worth a separate design document.
 
 ---
@@ -258,27 +247,27 @@ a larger refactor worth a separate design document.
 ### The problem
 
 The local-collect → shared-serve workflow creates a data integrity risk: a shared cricket
-server could accumulate snapshots that contain data from different environments within
+server could accumulate scans that contain data from different environments within
 what appears to be a single site.
 
 **Concrete scenario**: a team has `mysite` on both a local cricket instance and a staging
 cricket instance, both pushing to a shared server. The shared server receives:
 
-- Snapshot A from local: DDT query counts (useful, environment-independent) + pageweight
+- Scan A from local: DDT query counts (useful, environment-independent) + pageweight
   (measured on a developer laptop — not representative of production)
-- Snapshot B from staging: Lighthouse scores + headers + pageweight (measured on a
+- Scan B from staging: Lighthouse scores + headers + pageweight (measured on a
   realistic staging server)
 
-If an agent or developer queries `GET /api/sites/mysite/snapshots/` they see both snapshots
-with no indication that pageweight numbers from snapshot A are incomparable with snapshot B.
-Trend analysis across these snapshots would be misleading.
+If an agent or developer queries `GET /api/sites/mysite/scans/` they see both scans
+with no indication that pageweight numbers from scan A are incomparable with scan B.
+Trend analysis across these scans would be misleading.
 
-### Solution: environment tagging on `sites.Snapshot`
+### Solution: environment tagging on `sites.Scan`
 
-Add an `environment` field to `sites.Snapshot`:
+Add an `environment` field to `sites.Scan`:
 
 ```python
-class Snapshot(TimeStampedModel, models.Model):
+class Run(TimeStampedModel, models.Model):
     # existing fields ...
     environment = CharField(
         max_length=50,
@@ -288,16 +277,16 @@ class Snapshot(TimeStampedModel, models.Model):
     )
 ```
 
-This is set when a snapshot is created (from `Site.extra_config["environment"]` or from
+This is set when a scan is created (from `Site.extra_config["environment"]` or from
 a push command argument) and is immutable after creation.
 
 **API changes**:
-- `SnapshotOut` includes `environment` field.
-- `GET /api/sites/{slug}/snapshots/` supports `?environment=local` filter.
+- `ScanOut` includes `environment` field.
+- `GET /api/sites/{slug}/scans/` supports `?environment=local` filter.
 - `agent-context` endpoint documents the environment field and recommends filtering by it.
 
 **Push command behaviour**: the push command requires `--environment` to be specified
-(or reads it from the source snapshot). It never silently loses provenance.
+(or reads it from the source scan). It never silently loses provenance.
 
 ### What is and is not environment-independent
 
@@ -314,31 +303,31 @@ This distinction matters for what should be pushed vs. collected natively:
 | Template render count | Yes | Collect locally, push |
 | Signal count | Yes | Collect locally, push |
 
-The practical implication: when pushing a local snapshot to the shared server, include
-only the DDT toolbar snapshot, not pageweight or lighthouse data from local. The push
-command should support `--collectors toolbar` to push selected child snapshots only.
+The practical implication: when pushing a local scan to the shared server, include
+only the DDT toolbar scan, not pageweight or lighthouse data from local. The push
+command should support `--collectors toolbar` to push selected child scans only.
 
 ### Partial push (selective collector sync)
 
-The push mechanism needs to support pushing only specific child snapshots from a parent.
+The push mechanism needs to support pushing only specific child scans from a parent.
 Two ways to structure this on the remote:
 
-**Option 1: Create a new remote snapshot tagged as local, with only toolbar data**
+**Option 1: Create a new remote scan tagged as local, with only toolbar data**
 
-The remote server has two snapshot series for the site: one from staging (lighthouse +
+The remote server has two scan series for the site: one from staging (lighthouse +
 headers + pageweight) and one from local (toolbar only). Each is unambiguous. An agent
-querying both needs to join on snapshot time and URL to see the full picture.
+querying both needs to join on scan time and URL to see the full picture.
 
-**Option 2: Attach toolbar data to an existing remote snapshot**
+**Option 2: Attach toolbar data to an existing remote scan**
 
-The remote staging snapshot gets toolbar child snapshots attached from the local push.
-This creates a single "complete" snapshot but with mixed provenance. Requires
-per-child-snapshot environment tagging rather than just parent-level tagging.
+The remote staging scan gets toolbar child scans attached from the local push.
+This creates a single "complete" scan but with mixed provenance. Requires
+per-child-scan environment tagging rather than just parent-level tagging.
 
 **Recommendation: Option 1** for now. It is unambiguous and requires less model change.
-The API already supports listing multiple snapshots for a site; an agent can query
+The API already supports listing multiple scans for a site; an agent can query
 `?environment=staging` and `?environment=local` separately. Option 2 can be reconsidered
-if agents consistently struggle with joining across two snapshot series.
+if agents consistently struggle with joining across two scan series.
 
 ---
 
@@ -359,26 +348,26 @@ enable_pageweight = BooleanField(default=True)
 enable_toolbar = BooleanField(default=False)
 ```
 
-Update `take_site_snapshot` to check each flag. Update `SiteAdmin` to expose these fields.
+Update `take_site_scan` to check each flag. Update `SiteAdmin` to expose these fields.
 This is a prerequisite for DDT and also cleans up the existing "always fire all collectors"
 assumption.
 
-#### 1b. Environment field on `sites.Snapshot`
+#### 1b. Environment field on `sites.Scan`
 
-Add `environment = CharField(max_length=50, default="", blank=True)` to `sites.Snapshot`.
+Add `environment = CharField(max_length=50, default="", blank=True)` to `sites.Scan`.
 
 Add `environment` to `Site.extra_config` schema documentation so operators know how to
-set it (e.g. `{"environment": "local"}`). `create_snapshot()` reads this and stamps it
-on the new Snapshot.
+set it (e.g. `{"environment": "local"}`). `create_scan()` reads this and stamps it
+on the new Scan.
 
 #### 1c. New `debugtoolbar` app
 
 Create `apps/debugtoolbar/` following the identical pattern of `apps/headers/`.
 
-**`apps/debugtoolbar/models/snapshot.py`**
+**`apps/debugtoolbar/models/run.py`**
 ```python
-class Snapshot(TimeStampedModel, models.Model):
-    snapshot = ForeignKey("sites.Snapshot", CASCADE, related_name="toolbar_snapshots")
+class Run(TimeStampedModel, models.Model):
+    scan = ForeignKey("sites.Scan", CASCADE, related_name="toolbar_run")
     status = CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     page_count = IntegerField(null=True, blank=True)
 ```
@@ -386,7 +375,7 @@ class Snapshot(TimeStampedModel, models.Model):
 **`apps/debugtoolbar/models/page.py`**
 ```python
 class Page(TimeStampedModel, models.Model):
-    snapshot = ForeignKey(Snapshot, CASCADE, related_name="pages")
+    page = ForeignKey("sites.Page", CASCADE, related_name="toolbar_data")
     url = URLField(max_length=2000)
     collected = BooleanField(default=False)
     error = TextField(blank=True)
@@ -417,14 +406,14 @@ class Page(TimeStampedModel, models.Model):
     request_data = JSONField(default=dict)      # {method, path, GET, POST, session_keys}
 
     class Meta:
-        indexes = [models.Index(fields=["snapshot", "url"])]
+        
 ```
 
 **`apps/debugtoolbar/tasks.py`** — identical structure to `headers/tasks.py`:
 ```
-take_toolbar_snapshot(sites_snapshot_pk)
+take_toolbar_scan(scan_pk)
 collect_page_panels(page_pk)
-complete_toolbar_snapshot(snapshot_pk)
+complete_toolbar_run(run_pk)
 ```
 
 `collect_page_panels` makes two HTTP requests:
@@ -433,7 +422,7 @@ complete_toolbar_snapshot(snapshot_pk)
 
 It reads `CRICKET_SECRET` from `Site.extra_config` for the second request's auth header.
 Checks `settings.DDT_COLLECTION_ENABLED` at the top of the task; raises a non-retrying
-exception if False (so the snapshot transitions to `failed` with a clear message).
+exception if False (so the scan transitions to `failed` with a clear message).
 
 **Settings addition:**
 ```python
@@ -492,25 +481,25 @@ profiling data unless explicitly requested.
 Add `apps/api/routers/toolbar.py`.
 
 ```
-GET /api/sites/{slug}/snapshots/{snapshot_id}/toolbar/
-    → ToolbarSnapshotOut: status, page_count, sql_avg_queries, sql_max_queries,
+GET /api/sites/{slug}/scans/{scan_id}/toolbar/
+    → ToolbarRunOut: status, page_count, sql_avg_queries, sql_max_queries,
                           sql_avg_time_ms, cache_hit_rate_avg
 
-GET /api/sites/{slug}/snapshots/{snapshot_id}/toolbar/pages/
+GET /api/sites/{slug}/scans/{scan_id}/toolbar/pages/
     → paginated ToolbarPageListOut: url, sql_query_count, sql_total_time_ms,
                                     sql_duplicate_count, cache_hits, cache_misses,
                                     template_count, signal_count
 
-GET /api/sites/{slug}/snapshots/{snapshot_id}/toolbar/pages/{page_id}/
+GET /api/sites/{slug}/scans/{scan_id}/toolbar/pages/{page_id}/
     → ToolbarPageDetailOut: all scalar fields + raw JSONFields
                             (raw fields null if pruned)
 ```
 
-Update `SnapshotOut` to include:
+Update `ScanOut` to include:
 - `environment: str` — the origin environment tag
 - `toolbar_url: str | None` — null unless site has `enable_toolbar=True`
 
-Update `GET /api/sites/{slug}/snapshots/` to support `?environment=<tag>` filter.
+Update `GET /api/sites/{slug}/scans/` to support `?environment=<tag>` filter.
 
 Update `agent-context` to document the environment field, the toolbar endpoints, and
 the guidance that pageweight/lighthouse from different environments should not be
@@ -527,21 +516,21 @@ compared directly.
 Add an admin-authenticated API endpoint:
 
 ```
-POST /api/sites/{slug}/snapshots/push/
+POST /api/sites/{slug}/scans/push/
 Authorization: Bearer <admin-api-key>
 Content-Type: application/json
 
 {
   "environment": "local",
   "collectors": ["toolbar"],   # optional — defaults to all present collectors
-  "snapshot": { ...serialised child snapshots... }
+  "scans": { ...serialised child scans... }
 }
 ```
 
 The request body is generated by a management command on the source cricket instance:
 
 ```bash
-python manage.py push_snapshot <snapshot_id> \
+python manage.py push_scan <scan_id> \
     --remote https://cricket.example.com \
     --key <admin-token> \
     --collectors toolbar \
@@ -549,11 +538,11 @@ python manage.py push_snapshot <snapshot_id> \
 ```
 
 Key behaviours of the push:
-- `--collectors` limits which child snapshots are included. Default: all completed child
-  snapshots. For DDT-only pushes from local, `--collectors toolbar` is used.
-- `--environment` overrides the source snapshot's environment tag on the remote. If the
+- `--collectors` limits which child scans are included. Default: all completed child
+  scans. For DDT-only pushes from local, `--collectors toolbar` is used.
+- `--environment` overrides the source scan's environment tag on the remote. If the
   source is already tagged correctly this is optional.
-- The remote creates a new `sites.Snapshot` with `status=COMPLETE` and the specified
+- The remote creates a new `sites.Scan` with `status=COMPLETE` and the specified
   environment tag. If the site slug doesn't exist on the remote, a stub is created.
 - Files (lighthouse HTML reports) are not transferred. Remote records have null file fields.
 
@@ -563,14 +552,14 @@ This directly addresses the mixed-environment data integrity concern. A develope
 locally pushes only toolbar data:
 
 ```bash
-python manage.py push_snapshot 42 --collectors toolbar --environment local
+python manage.py push_scan 42 --collectors toolbar --environment local
 ```
 
-The shared server receives a snapshot with only toolbar data, tagged as `local`. It does
+The shared server receives a scan with only toolbar data, tagged as `local`. It does
 not receive local pageweight or lighthouse data. An agent querying the shared server sees:
 
-- `GET /api/sites/mysite/snapshots/?environment=staging` → lighthouse, headers, pageweight
-- `GET /api/sites/mysite/snapshots/?environment=local` → toolbar only
+- `GET /api/sites/mysite/scans/?environment=staging` → lighthouse, headers, pageweight
+- `GET /api/sites/mysite/scans/?environment=local` → toolbar only
 
 The agent can join on time and URL, knowing which metrics are from which environment.
 Each number is interpretable without ambiguity.
@@ -583,7 +572,7 @@ Each number is interpretable without ambiguity.
 |------|-----------|-----------|
 | Scalar stats (query_count, etc.) | 1 year | Drift analysis over time as features are added |
 | Raw JSONFields (sql_queries, etc.) | 90 days | Sensitive (SQL text, stack traces, request params) |
-| Snapshot/Page records | 1 year | Consistent with other collectors |
+| Scan/Page records | 1 year | Consistent with other collectors |
 
 The `prune_old_toolbar_data` command nullifies the five raw JSONFields in-place rather
 than deleting the Page record. The scalar stats remain for trend analysis. This is
@@ -616,7 +605,7 @@ the derived metrics.
    management command requires the admin key to be passed explicitly — it cannot read
    it from environment config automatically, to prevent accidental pushes.
 
-6. **Environment tag immutability**: Once set on a Snapshot, the environment tag cannot
+6. **Environment tag immutability**: Once set on a Scan, the environment tag cannot
    be changed via the API. Only the push command (admin key required) sets it at
    creation time.
 
@@ -631,7 +620,7 @@ apps/
     apps.py
     admin/
       __init__.py
-      snapshot.py
+      scan.py
       page.py
     management/
       commands/
@@ -639,7 +628,7 @@ apps/
     migrations/
     models/
       __init__.py
-      snapshot.py
+      scan.py
       page.py
     tasks.py
   api/
@@ -648,7 +637,7 @@ apps/
   sites/
     models/
       site.py                 (add enable_* flags, environment in extra_config docs)
-      snapshot.py             (add environment field)
+      scan.py             (add environment field)
     tasks.py                  (check enable_* flags before dispatching)
 
 # Companion package — separate repository:
@@ -662,7 +651,7 @@ django_cricket/
 
 # Sync management commands:
 apps/sites/management/commands/
-  push_snapshot.py            (Phase 4)
+  push_scan.py            (Phase 4)
 ```
 
 ---
@@ -672,17 +661,17 @@ apps/sites/management/commands/
 | Component | Change | Phase |
 |-----------|--------|-------|
 | `sites.Site` | Add `enable_lighthouse/headers/pageweight/toolbar` flags | 1a |
-| `sites.Snapshot` | Add `environment` field | 1b |
+| `sites.Scan` | Add `environment` field | 1b |
 | `sites/tasks.py` | Check enable flags before dispatching | 1a |
-| `sites/models/site.py` | `create_snapshot()` reads environment from `extra_config` | 1b |
+| `sites/models/site.py` | `create_scan()` reads environment from `extra_config` | 1b |
 | `apps/debugtoolbar/` | New app — models, tasks, admin, prune command | 1c |
 | `config/settings.py` | Add `DDT_COLLECTION_ENABLED` | 1c |
 | `django-cricket` package | Companion middleware for target app (separate repo) | 2 |
 | `api/routers/toolbar.py` | New router, 3 endpoints | 3 |
-| `api/routers/snapshots.py` | Add `environment` field, `?environment` filter | 3 |
+| `api/routers/scans.py` | Add `environment` field, `?environment` filter | 3 |
 | `api/routers/introspection.py` | Document environment and toolbar in agent-context | 3 |
-| `push_snapshot` command | Push selected collectors to remote cricket | 4 |
-| Remote push API endpoint | Accept incoming snapshot data (admin key required) | 4 |
+| `push_scan` command | Push selected collectors to remote cricket | 4 |
+| Remote push API endpoint | Accept incoming scan data (admin key required) | 4 |
 
 **Effort estimate**: ~10–12 days total. Phase 1 is the foundation (3 days). Phase 2 is
 independent and can be done in parallel (2 days). Phase 3 follows Phase 1 (1 day).
@@ -700,4 +689,4 @@ Phase 4 is standalone after Phase 1 and 3 are complete (3 days).
 | Sync mechanism | Push API endpoint (agent-operable); management command generates payload |
 | Data retention for DDT | Scalar stats: 1 year; raw JSONFields: 90 days (pruned in-place) |
 | Selective collection model | Multiple Site objects (Model A); per-collector enable flags on Site |
-| Environment integrity | `environment` field on Snapshot; push scoped to selected collectors |
+| Environment integrity | `environment` field on Scan; push scoped to selected collectors |

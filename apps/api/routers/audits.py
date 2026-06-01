@@ -1,10 +1,10 @@
 from typing import Optional
 
-from django.db.models import Sum
+from django.db.models import Count, Q
 from django.http import HttpRequest
 from ninja import Query, Router, Status
 
-from lighthouse.models import AuditDefinition, SnapshotAudit
+from lighthouse.models import AuditDefinition, PageAudit
 from ..auth import bearer_auth
 from ..errors import ErrorResponse, invalid_field, not_found
 from ..schemas import AuditDefinitionOut, AuditDefinitionWithStats
@@ -23,13 +23,10 @@ def list_audits(
     if sort not in VALID_SORT:
         return Status(422, invalid_field("sort", sort, VALID_SORT))
 
-    qs = AuditDefinition.objects.all()
-
-    # Annotate with failure counts from SnapshotAudit
-    qs = qs.annotate(
-        total_failing=Sum("snapshot_audits__poor_count", default=0),
-        total_needing=Sum("snapshot_audits__needs_count", default=0),
-        total_good=Sum("snapshot_audits__good_count", default=0),
+    qs = AuditDefinition.objects.annotate(
+        total_failing=Count("page_audits", filter=Q(page_audits__rating="poor"), distinct=True),
+        total_needing=Count("page_audits", filter=Q(page_audits__rating="needs-improvement"), distinct=True),
+        total_good=Count("page_audits", filter=Q(page_audits__rating="good"), distinct=True),
     )
 
     if has_failures:
@@ -38,7 +35,7 @@ def list_audits(
     results = []
     for audit in qs:
         total = (audit.total_failing or 0) + (audit.total_needing or 0) + (audit.total_good or 0)
-        failing = (audit.total_failing or 0)
+        failing = audit.total_failing or 0
         fail_rate = round(failing / total, 3) if total > 0 else None
         results.append(
             AuditDefinitionWithStats(

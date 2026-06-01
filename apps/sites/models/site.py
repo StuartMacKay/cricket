@@ -133,14 +133,14 @@ class Site(TimeStampedModel, models.Model):
     crontab = models.CharField(
         validators=[validate_crontab],
         verbose_name=_("Crontab"),
-        help_text=_("Crontab entry which defines the time a Snapshot will be taken"),
+        help_text=_("Crontab entry which defines when a Scan will be triggered"),
         max_length=100,
         blank=True,
     )
 
     snapped = models.DateTimeField(
         verbose_name=_("Snapped"),
-        help_text=_("The date and time the last Snapshot was taken"),
+        help_text=_("The date and time the last Scan was triggered"),
         null=True,
         blank=True,
     )
@@ -150,14 +150,38 @@ class Site(TimeStampedModel, models.Model):
         help_text=_("Is the site active"),
     )
 
-    current_snapshot = models.ForeignKey(
-        "Snapshot",
+    enable_lighthouse = models.BooleanField(
+        default=True,
+        verbose_name=_("Enable Lighthouse"),
+        help_text=_("Run Lighthouse audits when this site is scanned"),
+    )
+
+    enable_headers = models.BooleanField(
+        default=True,
+        verbose_name=_("Enable headers"),
+        help_text=_("Run HTTP header audits when this site is scanned"),
+    )
+
+    enable_pageweight = models.BooleanField(
+        default=True,
+        verbose_name=_("Enable page weight"),
+        help_text=_("Run page weight measurements when this site is scanned"),
+    )
+
+    enable_toolbar = models.BooleanField(
+        default=False,
+        verbose_name=_("Enable toolbar"),
+        help_text=_("Run Django Debug Toolbar data collection when this site is scanned"),
+    )
+
+    current_scan = models.ForeignKey(
+        "Scan",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="+",
-        verbose_name=_("Current snapshot"),
-        help_text=_("The most recently completed Snapshot for this site"),
+        verbose_name=_("Current scan"),
+        help_text=_("The most recently completed Scan for this site"),
     )
 
     objects = SiteManager()
@@ -241,12 +265,14 @@ class Site(TimeStampedModel, models.Model):
         url = HttpUrl(self.sitemap_url) if self.sitemap_url else ""
         yield from self._load_sitemap(url or self.sitemap_file.path)
 
-    def create_snapshot(self) -> "Snapshot":
-        from .snapshot import Snapshot
-        snapshot = Snapshot.objects.create(
+    def create_scan(self) -> "Scan":
+        from .scan import Scan
+        environment = self.extra_config.get("environment", "")
+        scan = Scan.objects.create(
             site=self,
             platform=self.platform,
+            environment=environment,
         )
         self.snapped = timezone.now()
         self.save(update_fields=["snapped"])
-        return snapshot
+        return scan

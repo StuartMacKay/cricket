@@ -1,6 +1,6 @@
 from ninja import NinjaAPI
 
-from .routers import audits, feedback, introspection, jobs, pages, sites, snapshots
+from .routers import audits, feedback, introspection, jobs, pages, scans, sites
 
 api = NinjaAPI(
     title="Cricket API",
@@ -14,10 +14,9 @@ api.add_router("/", introspection.router)
 api.add_router("/audits/", audits.router)
 api.add_router("/sites/", sites.router)
 
-# Snapshot and page routes — nested under sites
-# We handle the slug routing in the endpoint functions directly
-api.add_router("/sites/{slug}/snapshots/", snapshots.router)
-api.add_router("/sites/{slug}/snapshots/{snapshot_id}/pages/", pages.router)
+# Scan and page routes — nested under sites
+api.add_router("/sites/{slug}/scans/", scans.router)
+api.add_router("/sites/{slug}/scans/{scan_id}/pages/", pages.router)
 
 api.add_router("/jobs/", jobs.router)
 api.add_router("/feedback/", feedback.router)

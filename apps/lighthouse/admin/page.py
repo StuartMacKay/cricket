@@ -3,21 +3,20 @@ from django.http import Http404, HttpResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from ..models import Page
+from ..models import PageResult
 
 
-@admin.register(Page)
-class PageAdmin(admin.ModelAdmin):
-    list_display = ("url", "snapshot", "audited", "report_link", "created")
-    ordering = ("url",)
-    search_fields = ("url",)
+@admin.register(PageResult)
+class PageResultAdmin(admin.ModelAdmin):
+    list_display = ("page", "audited", "report_link", "created")
+    ordering = ("page__url",)
+    search_fields = ("page__url",)
     list_filter = ("audited",)
     readonly_fields = (
-        "url",
+        "page",
         "report",
         "html_report",
         "report_link",
-        "snapshot",
         "audited",
         "created",
         "modified",
@@ -49,11 +48,11 @@ class PageAdmin(admin.ModelAdmin):
 
     def _serve_report(self, request, pk):
         try:
-            page = Page.objects.get(pk=pk)
-        except Page.DoesNotExist:
+            result = PageResult.objects.get(pk=pk)
+        except PageResult.DoesNotExist:
             raise Http404
-        if not page.html_report:
+        if not result.html_report:
             raise Http404("No HTML report available for this page.")
-        with page.html_report.open() as fp:
+        with result.html_report.open() as fp:
             content = fp.read()
         return HttpResponse(content, content_type="text/html; charset=utf-8")

@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.factories import SiteFactory, SnapshotFactory
+from tests.factories import ScanFactory, SiteFactory
 
 pytestmark = pytest.mark.django_db
 

@@ -18,25 +18,19 @@ Read that before proposing structural changes.
 
 ```
 sites.Site
-  └── sites.Scan          (was: sites.Snapshot)
-        ├── sites.Page × N  (NEW: shared URL list, one record per URL)
-        ├── lighthouse.Run  (was: lighthouse.Snapshot — status/config only)
-        ├── headers.Run     (was: headers.Snapshot — status only)
-        └── pageweight.Run  (was: pageweight.Snapshot — status only)
+  └── sites.Scan
+        ├── sites.Page × N  (shared URL list, one record per URL)
+        ├── lighthouse.Run  (status/config only)
+        ├── headers.Run     (status only)
+        └── pageweight.Run  (status only)
 
 Per-tool results reference sites.Page (not a per-tool Page model):
+  lighthouse.PageResult    page = OneToOneField(sites.Page)
   lighthouse.PageCategory  page = FK(sites.Page)
   lighthouse.PageAudit     page = FK(sites.Page)
-  headers.PageData         page = FK(sites.Page)   (was: headers.Page)
-  pageweight.PageData      page = FK(sites.Page)   (was: pageweight.Page)
+  headers.PageData         page = OneToOneField(sites.Page)
+  pageweight.PageData      page = OneToOneField(sites.Page)
   pageweight.Resource      page = FK(sites.Page)
-
-Removed entirely:
-  lighthouse.Page          (replaced by sites.Page)
-  headers.Page             (replaced by sites.Page)
-  pageweight.Page          (replaced by sites.Page)
-  lighthouse.SnapshotCategory   (aggregation removed)
-  lighthouse.SnapshotAudit      (aggregation removed)
 ```
 
 The `Run` models are lean orchestration records: status, page_count, and any
@@ -46,9 +40,6 @@ contain or own pages.
 ---
 
 ## API naming
-
-API URLs change from `/snapshots/` to `/scans/`. The project is new with no external
-consumers; now is the right time to make this change.
 
 ```
 GET  /api/sites/{slug}/scans/
@@ -75,15 +66,11 @@ Per-tool endpoints remain for tool-specific result detail.
   concurrent Celery writes well; SQLite would reduce deployment friction. The number of
   concurrent database writes equals the number of Celery workers, so SQLite is viable
   as long as worker count is controlled. Decide before the deployment story solidifies.
-- **Rename Snapshot → Scan throughout**: models, tasks, API, admin, tests, templates.
-  This is a mechanical rename but touches every app. Do it as a single focused commit.
-- **Introduce `sites.Page`**: add the shared page model, update the three existing
-  tool result models to FK there, remove `lighthouse.Page`, `headers.Page`,
-  `pageweight.Page`. Update tasks to create `sites.Page` records before dispatching
-  per-tool work.
-- **Remove pre-aggregation**: delete `SnapshotCategory`, `SnapshotAudit`, and the
-  aggregation half of `collect_metrics()`. Move completion signalling into each
-  `Run`'s completion task. Update the API to compute summaries on demand.
+- ~~**Rename Snapshot → Scan throughout**~~ — done.
+- ~~**Introduce `sites.Page`**~~ — done. Shared URL list; per-tool result models
+  FK to `sites.Page`; pages created by `take_site_scan` before tool tasks run.
+- ~~**Remove pre-aggregation**~~ — done. `SnapshotCategory`, `SnapshotAudit` deleted;
+  API computes category summaries on demand from `PageCategory`.
 - **Stabilise Lighthouse audit IDs**: map Lighthouse-internal IDs to cricket-owned
   stable slugs in the collection task.
 - Review and stabilise the existing three collectors.
@@ -114,8 +101,7 @@ different enable flags — not per-tool schedules on one Site.
 
 *Depends on Stage 1 (`enable_toolbar` flag).*
 
-Detailed design in `docs/ddt-integration-plan.md`. That document uses old terminology
-(Snapshot, per-tool Page models) — a translation note is at the top.
+Detailed design in `docs/ddt-integration-plan.md`.
 
 - New `apps/debugtoolbar/` collector. Follows the `headers` pattern.
 - `debugtoolbar.Run` (status only) + `debugtoolbar.PageData` → FK(sites.Page).

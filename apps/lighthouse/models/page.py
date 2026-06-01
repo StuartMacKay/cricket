@@ -20,7 +20,7 @@ LIGHTHOUSE_SCRIPT = os.path.join(settings.NODE_DIR, "src", "lighthouse.js")
 
 
 def audit_report_path(instance, filename):
-    slug = instance.snapshot.snapshot.site.slug
+    slug = instance.page.scan.site.slug
     name, extension = os.path.splitext(os.path.basename(filename))
     year = "%d" % instance.created.year
     month = "%02d" % instance.created.month
@@ -30,16 +30,18 @@ def audit_report_path(instance, filename):
     return os.path.join("audit", slug, year, month, day, hour, name)
 
 
-class Page(TimeStampedModel, models.Model):
-    """A Page contains the Lighthouse audit results for a single web page URL."""
+class PageResult(TimeStampedModel, models.Model):
+    """Lighthouse audit files and status for a single page in a run."""
 
     class Meta:
-        verbose_name = _("Page")
-        verbose_name_plural = _("Pages")
+        verbose_name = _("Page Result")
+        verbose_name_plural = _("Page Results")
 
-    url = models.URLField(
-        verbose_name=_("URL"),
-        help_text=_("The URL of the page from the Site"),
+    page = models.OneToOneField(
+        "sites.Page",
+        on_delete=models.CASCADE,
+        related_name="lighthouse_result",
+        verbose_name=_("Page"),
     )
 
     report = models.FileField(
@@ -68,26 +70,16 @@ class Page(TimeStampedModel, models.Model):
         ),
     )
 
-    snapshot = models.ForeignKey(
-        "Snapshot",
-        models.CASCADE,
-        related_name="pages",
-        verbose_name=_("Snapshot"),
-        help_text=_("The Snapshot that this Page belongs to"),
-    )
-
     def __str__(self):
-        return self.url
+        return str(self.page)
 
     def read_report(self) -> dict:
         with self.report.open() as fp:
             return json.load(fp)
 
     def _upsert_audit_definitions(self, data: dict) -> dict[str, "AuditDefinition"]:
-        """Upsert AuditDefinition rows and return a mapping of audit_id → definition."""
         from .audit import AuditDefinition
 
-        # Build a mapping of audit_id → primary category and weight
         audit_meta: dict[str, dict] = {}
         for key, audit in data["audits"].items():
             audit_meta[key] = {
@@ -105,7 +97,7 @@ class Page(TimeStampedModel, models.Model):
         definitions: dict[str, AuditDefinition] = {}
         for audit_id, meta in audit_meta.items():
             if "category_id" not in meta:
-                continue  # Skip audits not mapped to a category
+                continue
             obj, _ = AuditDefinition.objects.update_or_create(
                 audit_id=audit_id,
                 defaults={
@@ -122,7 +114,7 @@ class Page(TimeStampedModel, models.Model):
     def _save_page_categories(self, data: dict):
         from .audit import PageCategory
 
-        PageCategory.objects.filter(page=self).delete()
+        PageCategory.objects.filter(page=self.page).delete()
         for key, category in data["categories"].items():
             if category.get("score") is None:
                 continue
@@ -131,7 +123,7 @@ class Page(TimeStampedModel, models.Model):
             if rating is None:
                 continue
             PageCategory.objects.create(
-                page=self,
+                page=self.page,
                 category_id=key,
                 title=category.get("title", key),
                 score=score,
@@ -141,7 +133,7 @@ class Page(TimeStampedModel, models.Model):
     def _save_page_audits(self, data: dict, definitions: dict):
         from .audit import PageAudit
 
-        PageAudit.objects.filter(page=self).delete()
+        PageAudit.objects.filter(page=self.page).delete()
 
         for key, category in data["categories"].items():
             for ref in category.get("auditRefs", []):
@@ -158,7 +150,6 @@ class Page(TimeStampedModel, models.Model):
                     value = None
                     units = ""
                 elif key == "performance" and ref.get("weight", 0) > 0:
-                    # Numeric audit
                     score = int(raw_score * 100)
                     rating = Rating.get_rating(score)
                     value = lhr_audit.get("numericValue")
@@ -168,18 +159,16 @@ class Page(TimeStampedModel, models.Model):
                     elif units == "unitless" and value is not None:
                         value = round(value, 3)
                 else:
-                    # Binary audit (pass/fail)
                     score = int(raw_score * 100)
                     rating = Rating.get_rating(score)
                     value = None
                     units = ""
 
-                # Avoid creating duplicates when an audit appears in multiple categories
-                if PageAudit.objects.filter(page=self, audit=audit_def).exists():
+                if PageAudit.objects.filter(page=self.page, audit=audit_def).exists():
                     continue
 
                 PageAudit.objects.create(
-                    page=self,
+                    page=self.page,
                     audit=audit_def,
                     score=score,
                     rating=rating,
@@ -194,7 +183,8 @@ class Page(TimeStampedModel, models.Model):
         self._save_page_audits(data, definitions)
 
     def audit(self):
-        extra = {"url": self.url}
+        run = self.page.scan.lighthouse_run.get()
+        extra = {"url": self.page.url}
         log.info("Page audit started", extra=extra)
 
         html_fd, html_path = tempfile.mkstemp(suffix=".html")
@@ -205,9 +195,9 @@ class Page(TimeStampedModel, models.Model):
                 result = subprocess.run(
                     [
                         LIGHTHOUSE_SCRIPT,
-                        self.url,
+                        self.page.url,
                         "--quiet",
-                        "--cli-flags-path=%s" % self.snapshot.config_file,
+                        "--cli-flags-path=%s" % run.config_file,
                         "--html-output-path=%s" % html_path,
                     ],
                     capture_output=True,

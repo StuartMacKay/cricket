@@ -45,15 +45,15 @@ def agent_context(request: HttpRequest):
                 "list": "GET /api/sites/",
                 "get": "GET /api/sites/{slug}/",
             },
-            "snapshots": {
-                "list": "GET /api/sites/{slug}/snapshots/",
-                "latest": "GET /api/sites/{slug}/snapshots/latest/",
-                "create": "POST /api/sites/{slug}/snapshots/",
-                "get": "GET /api/sites/{slug}/snapshots/{id}/",
+            "scans": {
+                "list": "GET /api/sites/{slug}/scans/",
+                "latest": "GET /api/sites/{slug}/scans/latest/",
+                "create": "POST /api/sites/{slug}/scans/",
+                "get": "GET /api/sites/{slug}/scans/{id}/",
             },
             "pages": {
-                "list": "GET /api/sites/{slug}/snapshots/{id}/pages/",
-                "get": "GET /api/sites/{slug}/snapshots/{id}/pages/{page_id}/",
+                "list": "GET /api/sites/{slug}/scans/{id}/pages/",
+                "get": "GET /api/sites/{slug}/scans/{id}/pages/{page_id}/",
             },
             "jobs": {
                 "list": "GET /api/jobs/",
@@ -68,6 +68,7 @@ def agent_context(request: HttpRequest):
             "rating": ["poor", "needs-improvement", "good"],
             "category": ["performance", "accessibility", "best-practices", "seo"],
             "status": ["pending", "running", "complete", "failed"],
+            "environment": ["local", "staging", "production"],
         },
         "pagination": {
             "cursor_param": "cursor",
@@ -76,7 +77,7 @@ def agent_context(request: HttpRequest):
             "max_limit": 100,
         },
         "async": {
-            "trigger": "POST to /snapshots/ returns 202 with poll_url immediately",
+            "trigger": "POST to /scans/ returns 202 with poll_url immediately",
             "poll": "GET /api/jobs/{id}/ until status is complete or failed; honour retry_after",
             "webhook": "Pass webhook_url in POST body to receive a completion notification",
         },

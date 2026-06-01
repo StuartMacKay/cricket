@@ -35,24 +35,24 @@ def invalid_field(field: str, got: str, valid_values: list[str]) -> dict:
     }
 
 
-def snapshot_in_progress(snapshot_id: int) -> dict:
+def scan_in_progress(scan_id: int) -> dict:
     return {
         "error": {
-            "code": "snapshot_in_progress",
+            "code": "scan_in_progress",
             "message": (
-                "A snapshot is already running. "
+                "A scan is already running. "
                 "Poll the job for status, or pass \"force\": true to start a new one."
             ),
-            "job_id": snapshot_id,
-            "poll_url": f"/api/jobs/{snapshot_id}/",
+            "job_id": scan_id,
+            "poll_url": f"/api/jobs/{scan_id}/",
         }
     }
 
 
-def no_complete_snapshot(site_slug: str) -> dict:
+def no_complete_scan(site_slug: str) -> dict:
     return {
         "error": {
-            "code": "no_complete_snapshot",
-            "message": f"No complete snapshot found for site '{site_slug}'",
+            "code": "no_complete_scan",
+            "message": f"No complete scan found for site '{site_slug}'",
         }
     }

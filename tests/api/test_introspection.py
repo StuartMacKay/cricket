@@ -31,7 +31,7 @@ class TestAgentContext:
         data = client.get("/api/agent-context/").json()
         assert "resources" in data
         assert "sites" in data["resources"]
-        assert "snapshots" in data["resources"]
+        assert "scans" in data["resources"]
         assert "pages" in data["resources"]
 
     def test_response_contains_filter_params(self, client):

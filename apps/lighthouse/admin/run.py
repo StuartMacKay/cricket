@@ -1,21 +1,19 @@
 from django.contrib import admin
 
-from ..models import PageData
+from ..models import Run
 
 
-@admin.register(PageData)
-class PageDataAdmin(admin.ModelAdmin):
-    list_display = ("page", "status_code", "redirect_count")
-    list_filter = ("status_code",)
+@admin.register(Run)
+class RunAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "status", "page_count", "created")
     ordering = ("-created",)
-    search_fields = ("page__url",)
+    search_fields = ("scan__site__name",)
+    list_filter = ("status",)
     readonly_fields = (
-        "page",
-        "final_url",
-        "status_code",
-        "redirect_count",
-        "headers",
-        "error",
+        "scan",
+        "status",
+        "page_count",
+        "config_file",
         "created",
         "modified",
     )

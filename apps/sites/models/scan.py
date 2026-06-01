@@ -1,12 +1,13 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
 from django_extensions.db.models import TimeStampedModel
 
 
-class Snapshot(TimeStampedModel, models.Model):
+class Scan(TimeStampedModel, models.Model):
     class Meta:
-        verbose_name = _("Snapshot")
-        verbose_name_plural = _("Snapshots")
+        verbose_name = _("Scan")
+        verbose_name_plural = _("Scans")
         ordering = ["-created"]
 
     class Status(models.TextChoices):
@@ -15,10 +16,15 @@ class Snapshot(TimeStampedModel, models.Model):
         COMPLETE = "complete", _("Complete")
         FAILED = "failed", _("Failed")
 
+    class Environment(models.TextChoices):
+        LOCAL = "local", _("Local")
+        STAGING = "staging", _("Staging")
+        PRODUCTION = "production", _("Production")
+
     site = models.ForeignKey(
         "Site",
         on_delete=models.CASCADE,
-        related_name="snapshots",
+        related_name="scans",
         verbose_name=_("Site"),
     )
 
@@ -37,8 +43,16 @@ class Snapshot(TimeStampedModel, models.Model):
 
     webhook_url = models.URLField(
         verbose_name=_("Webhook URL"),
-        help_text=_("Optional URL to POST to when the snapshot completes"),
+        help_text=_("Optional URL to POST to when the scan completes"),
         blank=True,
+    )
+
+    environment = models.CharField(
+        max_length=20,
+        choices=Environment.choices,
+        blank=True,
+        verbose_name=_("Environment"),
+        help_text=_("The environment this scan was collected from"),
     )
 
     def __str__(self):

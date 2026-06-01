@@ -9,11 +9,11 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 
-from lighthouse.admin.snapshot import SnapshotAdmin
-from lighthouse.models import Snapshot as LighthouseSnapshot
+from lighthouse.admin.run import RunAdmin
+from lighthouse.models import Run as LighthouseRun
 from sites.admin.site import SiteAdmin
 from sites.models import Site
-from tests.factories import LighthouseSnapshotFactory, SiteFactory
+from tests.factories import LighthouseRunFactory, SiteFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -38,21 +38,21 @@ def site_admin():
 
 
 @pytest.fixture
-def snapshot_admin():
-    return SnapshotAdmin(LighthouseSnapshot, AdminSite())
+def run_admin():
+    return RunAdmin(LighthouseRun, AdminSite())
 
 
-class TestCreateSnapshotAction:
+class TestCreateScanAction:
     def test_dispatches_task_for_each_selected_site(self, client, superuser):
         site1 = SiteFactory()
         site2 = SiteFactory()
         client.force_login(superuser)
 
-        with patch("sites.admin.site.take_site_snapshot") as mock_task:
+        with patch("sites.admin.site.take_site_scan") as mock_task:
             client.post(
                 "/admin/sites/site/",
                 {
-                    "action": "trigger_snapshot",
+                    "action": "trigger_scan",
                     "_selected_action": [site1.pk, site2.pk],
                 },
                 follow=True,
@@ -66,11 +66,11 @@ class TestCreateSnapshotAction:
         site = SiteFactory()
         client.force_login(superuser)
 
-        with patch("sites.admin.site.take_site_snapshot"):
+        with patch("sites.admin.site.take_site_scan"):
             response = client.post(
                 "/admin/sites/site/",
                 {
-                    "action": "trigger_snapshot",
+                    "action": "trigger_scan",
                     "_selected_action": [site.pk],
                 },
                 follow=True,
@@ -80,17 +80,17 @@ class TestCreateSnapshotAction:
         assert any(site.name in str(m) for m in messages)
 
 
-class TestSnapshotAdminPermissions:
-    def test_add_permission_is_denied(self, rf, superuser, snapshot_admin):
+class TestRunAdminPermissions:
+    def test_add_permission_is_denied(self, rf, superuser, run_admin):
         request = rf.get("/admin/")
         request.user = superuser
-        assert snapshot_admin.has_add_permission(request) is False
+        assert run_admin.has_add_permission(request) is False
 
-    def test_snapshot_is_readonly(self, snapshot_admin):
-        assert "snapshot" in snapshot_admin.readonly_fields
+    def test_scan_is_readonly(self, run_admin):
+        assert "scan" in run_admin.readonly_fields
 
-    def test_created_is_readonly(self, snapshot_admin):
-        assert "created" in snapshot_admin.readonly_fields
+    def test_created_is_readonly(self, run_admin):
+        assert "created" in run_admin.readonly_fields
 
-    def test_status_is_readonly(self, snapshot_admin):
-        assert "status" in snapshot_admin.readonly_fields
+    def test_status_is_readonly(self, run_admin):
+        assert "status" in run_admin.readonly_fields

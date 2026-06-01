@@ -1,4 +1,5 @@
+from .page import Page
+from .scan import Scan
 from .site import Site
-from .snapshot import Snapshot
 
-__all__ = ("Site", "Snapshot")
+__all__ = ("Page", "Scan", "Site")

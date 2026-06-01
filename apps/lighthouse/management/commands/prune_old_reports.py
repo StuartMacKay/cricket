@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from lighthouse.models import Page
+from lighthouse.models import PageResult
 
 log = logging.getLogger(__name__)
 
@@ -36,9 +36,9 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         cutoff = timezone.now() - timedelta(days=days)
 
-        pages = Page.objects.filter(created__lt=cutoff).exclude(report="")
+        results = PageResult.objects.filter(created__lt=cutoff).exclude(report="")
 
-        count = pages.count()
+        count = results.count()
         self.stdout.write(f"Found {count} report(s) older than {days} days")
 
         if dry_run:
@@ -46,11 +46,11 @@ class Command(BaseCommand):
             return
 
         deleted = 0
-        for page in pages:
-            if page.report:
-                page.report.delete(save=False)
-                page.report = None
-                page.save(update_fields=["report"])
+        for result in results:
+            if result.report:
+                result.report.delete(save=False)
+                result.report = None
+                result.save(update_fields=["report"])
                 deleted += 1
 
         self.stdout.write(self.style.SUCCESS(f"Deleted {deleted} report(s)"))

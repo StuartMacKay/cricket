@@ -10,27 +10,18 @@ log = logging.getLogger(__name__)
 TIMEOUT = 30  # seconds
 
 
-class Page(TimeStampedModel, models.Model):
+class PageData(TimeStampedModel, models.Model):
     """HTTP response headers collected for a single URL."""
 
     class Meta:
-        verbose_name = _("Page")
-        verbose_name_plural = _("Pages")
-        ordering = ["url"]
-        indexes = [
-            models.Index(fields=["snapshot", "url"]),
-        ]
+        verbose_name = _("Page Data")
+        verbose_name_plural = _("Page Data")
 
-    snapshot = models.ForeignKey(
-        "Snapshot",
+    page = models.OneToOneField(
+        "sites.Page",
         on_delete=models.CASCADE,
-        related_name="pages",
-        verbose_name=_("Snapshot"),
-    )
-
-    url = models.URLField(
-        verbose_name=_("URL"),
-        max_length=2000,
+        related_name="headers_data",
+        verbose_name=_("Page"),
     )
 
     final_url = models.URLField(
@@ -65,11 +56,12 @@ class Page(TimeStampedModel, models.Model):
 
     def fetch(self):
         """Fetch the URL and record the response headers."""
-        extra = {"url": self.url}
+        url = self.page.url
+        extra = {"url": url}
         log.info("Fetching headers", extra=extra)
         try:
             response = requests.get(
-                self.url,
+                url,
                 timeout=TIMEOUT,
                 allow_redirects=True,
                 headers={"User-Agent": "cricket/1.0 headers-audit"},
@@ -88,4 +80,4 @@ class Page(TimeStampedModel, models.Model):
         self.save()
 
     def __str__(self):
-        return self.url
+        return str(self.page)

@@ -4,56 +4,55 @@ import pytest
 
 from tests.factories import (
     AuditDefinitionFactory,
-    LighthouseSnapshotFactory,
+    LighthouseRunFactory,
     PageAuditFactory,
     PageCategoryFactory,
     PageFactory,
+    ScanFactory,
     SiteFactory,
 )
 
 pytestmark = pytest.mark.django_db
 
 
-def make_snapshot(site):
-    """Return (sites_snapshot, lh_snapshot) pair for a given site."""
-    lh = LighthouseSnapshotFactory(snapshot__site=site)
-    return lh.snapshot, lh
+def make_scan(site):
+    """Return (scan, lh_run) pair for a given site."""
+    lh = LighthouseRunFactory(scan__site=site)
+    return lh.scan, lh
 
 
 class TestListPages:
     def test_requires_auth(self, client):
         site = SiteFactory()
-        sites_snapshot, _ = make_snapshot(site)
-        response = client.get(f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/")
+        scan, _ = make_scan(site)
+        response = client.get(f"/api/sites/{site.slug}/scans/{scan.pk}/pages/")
         assert response.status_code == 401
 
     def test_returns_200(self, auth_client):
         site = SiteFactory()
-        sites_snapshot, _ = make_snapshot(site)
-        response = auth_client.get(f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/")
+        scan, _ = make_scan(site)
+        response = auth_client.get(f"/api/sites/{site.slug}/scans/{scan.pk}/pages/")
         assert response.status_code == 200
 
-    def test_lists_audited_pages(self, auth_client):
+    def test_lists_all_pages(self, auth_client):
         site = SiteFactory()
-        sites_snapshot, lh = make_snapshot(site)
-        PageFactory(snapshot=lh, audited=True)
-        PageFactory(snapshot=lh, audited=True)
-        PageFactory(snapshot=lh, audited=False)  # should be excluded
-        response = auth_client.get(f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/")
+        scan, _ = make_scan(site)
+        PageFactory(scan=scan)
+        PageFactory(scan=scan)
+        response = auth_client.get(f"/api/sites/{site.slug}/scans/{scan.pk}/pages/")
         data = response.json()
-        # only audited pages returned
         assert data["count"] == 2
 
     def test_filter_by_rating_and_category(self, auth_client):
         site = SiteFactory()
-        sites_snapshot, lh = make_snapshot(site)
-        good_page = PageFactory(snapshot=lh, audited=True)
+        scan, _ = make_scan(site)
+        good_page = PageFactory(scan=scan)
         PageCategoryFactory(page=good_page, category_id="accessibility", rating="good")
-        poor_page = PageFactory(snapshot=lh, audited=True)
+        poor_page = PageFactory(scan=scan)
         PageCategoryFactory(page=poor_page, category_id="accessibility", rating="poor")
 
         response = auth_client.get(
-            f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/",
+            f"/api/sites/{site.slug}/scans/{scan.pk}/pages/",
             {"category": "accessibility", "rating": "poor"},
         )
         assert response.status_code == 200
@@ -61,9 +60,9 @@ class TestListPages:
 
     def test_invalid_rating_returns_422(self, auth_client):
         site = SiteFactory()
-        sites_snapshot, _ = make_snapshot(site)
+        scan, _ = make_scan(site)
         response = auth_client.get(
-            f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/",
+            f"/api/sites/{site.slug}/scans/{scan.pk}/pages/",
             {"rating": "excellent"},
         )
         assert response.status_code == 422
@@ -74,30 +73,30 @@ class TestListPages:
 class TestGetPage:
     def test_returns_200(self, auth_client):
         site = SiteFactory()
-        sites_snapshot, lh = make_snapshot(site)
-        page = PageFactory(snapshot=lh, audited=True)
+        scan, _ = make_scan(site)
+        page = PageFactory(scan=scan)
         response = auth_client.get(
-            f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/{page.pk}/"
+            f"/api/sites/{site.slug}/scans/{scan.pk}/pages/{page.pk}/"
         )
         assert response.status_code == 200
 
     def test_returns_404_for_missing_page(self, auth_client):
         site = SiteFactory()
-        sites_snapshot, _ = make_snapshot(site)
+        scan, _ = make_scan(site)
         response = auth_client.get(
-            f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/999999/"
+            f"/api/sites/{site.slug}/scans/{scan.pk}/pages/999999/"
         )
         assert response.status_code == 404
 
     def test_response_includes_audits(self, auth_client):
         site = SiteFactory()
-        sites_snapshot, lh = make_snapshot(site)
-        page = PageFactory(snapshot=lh, audited=True)
+        scan, _ = make_scan(site)
+        page = PageFactory(scan=scan)
         audit_def = AuditDefinitionFactory(audit_id="color-contrast", category_id="accessibility")
         PageAuditFactory(page=page, audit=audit_def, score=100, rating="good")
 
         response = auth_client.get(
-            f"/api/sites/{site.slug}/snapshots/{sites_snapshot.pk}/pages/{page.pk}/"
+            f"/api/sites/{site.slug}/scans/{scan.pk}/pages/{page.pk}/"
         )
         data = response.json()
         assert "audits" in data

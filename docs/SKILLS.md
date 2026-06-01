@@ -15,13 +15,13 @@ GET /api/sites/
 # Get one site by slug
 GET /api/sites/my-site/
 
-# Read the most recent complete snapshot (O(1) — no scanning)
-GET /api/sites/my-site/snapshots/latest/
+# Read the most recent complete scan (O(1) — no scanning)
+GET /api/sites/my-site/scans/latest/
 ```
 
 The `latest/` response includes `categories` with aggregated scores and
-poor/needs/good page counts for each category.  If no complete snapshot
-exists yet the response is 404 with code `no_complete_snapshot`.
+poor/needs/good page counts for each category.  If no complete scan
+exists yet the response is 404 with code `no_complete_scan`.
 
 ---
 
@@ -29,19 +29,19 @@ exists yet the response is 404 with code `no_complete_snapshot`.
 
 ```
 # All pages with a "poor" accessibility rating
-GET /api/sites/my-site/snapshots/42/pages/
+GET /api/sites/my-site/scans/42/pages/
     ?category=accessibility&rating=poor
 
 # All pages that fail a specific audit
-GET /api/sites/my-site/snapshots/42/pages/
+GET /api/sites/my-site/scans/42/pages/
     ?audit=largest-contentful-paint&rating=poor
 
 # Combine: poor LCP pages, 10 at a time, ordered by URL
-GET /api/sites/my-site/snapshots/42/pages/
+GET /api/sites/my-site/scans/42/pages/
     ?audit=largest-contentful-paint&rating=poor&limit=10
 
 # Next page using cursor from previous response
-GET /api/sites/my-site/snapshots/42/pages/
+GET /api/sites/my-site/scans/42/pages/
     ?audit=largest-contentful-paint&rating=poor&limit=10&cursor=<next_cursor>
 ```
 
@@ -53,7 +53,7 @@ the result set is large.
 ## 3. Reading audit detail to understand what to fix
 
 ```
-GET /api/sites/my-site/snapshots/42/pages/1203/
+GET /api/sites/my-site/scans/42/pages/1203/
 ```
 
 The response joins `PageAudit` with `AuditDefinition` so you receive the
@@ -73,8 +73,8 @@ CSS selectors.  This is what you need to know *what to fix*, not just
 ### Option A — Poll
 
 ```
-# Trigger a new snapshot
-POST /api/sites/my-site/snapshots/
+# Trigger a new scan
+POST /api/sites/my-site/scans/
 {}
 
 # Response: 202 Accepted
@@ -85,36 +85,36 @@ GET /api/jobs/43/
 # → {"status": "running", "retry_after": 30, "result_url": null}
 # wait 30 seconds
 GET /api/jobs/43/
-# → {"status": "complete", "result_url": "/api/sites/my-site/snapshots/43/"}
+# → {"status": "complete", "result_url": "/api/sites/my-site/scans/43/"}
 
 # Read the results
-GET /api/sites/my-site/snapshots/43/
+GET /api/sites/my-site/scans/43/
 ```
 
 ### Option B — Webhook (preferred for long-running audits)
 
 ```
-POST /api/sites/my-site/snapshots/
-{"webhook_url": "https://your-service.example.com/lighthouse-hook"}
+POST /api/sites/my-site/scans/
+{"webhook_url": "https://your-service.example.com/cricket-hook"}
 
-# Your service receives a POST when the snapshot completes:
+# Your service receives a POST when the scan completes:
 # {
-#   "event": "snapshot.complete",
-#   "snapshot_id": 43,
+#   "event": "scan.complete",
+#   "scan_id": 43,
 #   "site_slug": "my-site",
-#   "result_url": "/api/sites/my-site/snapshots/43/",
+#   "result_url": "/api/sites/my-site/scans/43/",
 #   "status": "complete"
 # }
 ```
 
-### If a snapshot is already running
+### If a scan is already running
 
 ```
 # 409 Conflict
-# {"error": {"code": "snapshot_in_progress", "job_id": 43, "poll_url": "/api/jobs/43/"}}
+# {"error": {"code": "scan_in_progress", "job_id": 43, "poll_url": "/api/jobs/43/"}}
 
 # Force a new one anyway
-POST /api/sites/my-site/snapshots/
+POST /api/sites/my-site/scans/
 {"force": true}
 ```
 
@@ -123,20 +123,20 @@ POST /api/sites/my-site/snapshots/
 ## 5. Comparing scores before and after a fix
 
 ```
-# Before fix: snapshot 42
-GET /api/sites/my-site/snapshots/42/
+# Before fix: scan 42
+GET /api/sites/my-site/scans/42/
 # → performance: 61 (poor)
 
-# After fix: trigger and wait for snapshot 43
-POST /api/sites/my-site/snapshots/
+# After fix: trigger and wait for scan 43
+POST /api/sites/my-site/scans/
 # → wait for completion
 
-GET /api/sites/my-site/snapshots/43/
+GET /api/sites/my-site/scans/43/
 # → performance: 78 (needs-improvement) — improved
 
 # Compare a specific page
-GET /api/sites/my-site/snapshots/42/pages/1203/
-GET /api/sites/my-site/snapshots/43/pages/<new-page-id>/
+GET /api/sites/my-site/scans/42/pages/1203/
+GET /api/sites/my-site/scans/43/pages/<new-page-id>/
 # → largest-contentful-paint: 4200ms → 1800ms
 ```
 
@@ -148,18 +148,18 @@ An orchestrator agent can partition failing pages across worker agents:
 
 ```
 # Get the worst 20 LCP pages (two workers of 10 each)
-GET /api/sites/my-site/snapshots/42/pages/
+GET /api/sites/my-site/scans/42/pages/
     ?audit=largest-contentful-paint&rating=poor&limit=10
 # → first 10 pages + next_cursor
 
-GET /api/sites/my-site/snapshots/42/pages/
+GET /api/sites/my-site/scans/42/pages/
     ?audit=largest-contentful-paint&rating=poor&limit=10&cursor=<next_cursor>
 # → next 10 pages
 
 # Each worker agent receives:
 # - The page URL (to edit the source)
 # - GET /api/.../pages/{id}/ for the full audit detail (what to fix)
-# - The raw LHR JSON is at Page.report (available for 90 days) for
+# - The raw LHR JSON is at PageResult.report (available for 90 days) for
 #   correlated analysis when multiple audits share a root cause
 ```
 
@@ -176,12 +176,25 @@ GET /api/audits/?has_failures=true&sort=fail_rate
 #   ]
 ```
 
-This uses `SnapshotAudit` aggregated across all current snapshots — no
-file downloads, no scanning.
+Failure counts are computed on demand from `PageAudit` across all scans.
 
 ---
 
-## 8. Reporting API friction via the feedback endpoint
+## 8. Filtering by environment
+
+```
+# Scans collected from staging only
+GET /api/sites/my-site/scans/?environment=staging
+
+# Latest complete staging scan
+GET /api/sites/my-site/scans/latest/?environment=staging
+```
+
+The `environment` field is set at scan creation from `Site.extra_config["environment"]`.
+
+---
+
+## 9. Reporting API friction via the feedback endpoint
 
 If an endpoint returns an unexpected result or you hit a gap in the API,
 report it so maintainers can improve the service:
@@ -189,7 +202,7 @@ report it so maintainers can improve the service:
 ```
 POST /api/feedback/
 {
-  "endpoint": "GET /api/sites/my-site/snapshots/42/pages/",
+  "endpoint": "GET /api/sites/my-site/scans/42/pages/",
   "message": "The ?audit= filter doesn't work when combined with ?category=. Expected intersection; got empty result."
 }
 ```
