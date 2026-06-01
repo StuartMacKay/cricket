@@ -109,6 +109,17 @@ collection task maps Lighthouse-internal IDs to cricket-owned stable slugs befor
 storing them. The mapping lives in the collection code, not the database. Agents
 discover audit IDs via `GET /api/audits/` rather than hardcoding them.
 
+### SQLite chosen over PostgreSQL
+
+The number of concurrent database writes equals the number of Celery workers
+(documented in the worker concurrency decision), making SQLite viable with
+controlled worker counts. PostgreSQL was dropped to reduce deployment friction:
+no separate database service, no driver dependency, and the database file lives
+alongside the application. `psycopg[binary]` removed from `pyproject.toml`;
+the Docker Compose stack drops the `postgres` service and uses a named `data`
+volume for the SQLite file in production. Development uses the project root so
+the file is directly accessible on the host.
+
 ### Documentation pattern established
 
 Three documents, three jobs:

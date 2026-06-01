@@ -112,7 +112,7 @@ WATCHMAN_TOKENS = env.str("DJANGO_WATCHMAN_TOKENS", None)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 DATABASES = {
-    "default": env.db_url(default="postgres://project:password@localhost:5432/project")
+    "default": env.db_url(default=f"sqlite:///{ROOT_DIR}/db.sqlite3")
 }
 
 # ###########

@@ -8,9 +8,6 @@ x-app: &default-app
       - "DEBUG=${DEBUG:-false}"
       - "DJANGO_ENV=${DJANGO_ENV:-development}"
   depends_on:
-    postgres:
-      condition: "service_healthy"
-      required: false
     redis:
       condition: "service_started"
       required: false
@@ -20,29 +17,12 @@ x-app: &default-app
     # Override the defaults in .env which are for natively installed services
     BROKER_URL: "${BROKER_URL-redis://redis:6379/1}"
     CACHE_URL: "${CACHE_URL-redis://redis:6379/0}"
-    DATABASE_URL: "${DATABASE_URL-postgres://postgres:postgres@postgres:5432/postgres}"
+    DATABASE_URL: "${DATABASE_URL-sqlite:////data/db.sqlite3}"
   init: true
   restart: "${DOCKER_RESTART_POLICY:-no}"
   tty: true
 
 services:
-  postgres:
-    environment:
-      POSTGRES_USER: "${POSTGRES_USER-postgres}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD-postgres}"
-      POSTGRES_DB: "${POSTGRES_DB-postgres}"
-    healthcheck:
-      test: ["CMD", "pg_isready", "-q", "-U", "${POSTGRES_USER:-postgres}"]
-      interval: "5s"
-      timeout: "3s"
-      retries: 10
-    image: "postgres:17"
-    ports:
-      - "${DOCKER_POSTGRES_PORT_FORWARD-127.0.0.1:5432}:5432"
-    restart: "${DOCKER_RESTART_POLICY:-no}"
-    volumes:
-      - "pgdata:/var/lib/postgresql/data"
-
   redis:
     image: "redis:7.2"
     ports:
@@ -62,6 +42,7 @@ services:
     ports:
       - "${DOCKER_DJANGO_PORT_FORWARD-127.0.0.1:8000}:8000"
     volumes:
+      - "data:/data"
       - "media:/app/media"
       - "static:/app/static"
 
@@ -83,6 +64,7 @@ services:
         required: false
     entrypoint: []
     volumes:
+      - "data:/data"
       - "media:/app/media"
 
   flower:
@@ -97,7 +79,7 @@ services:
       - "${DOCKER_FLOWER_PORT_FORWARD-127.0.0.1:5555}:5555"
 
 volumes:
-  pgdata:
+  data:
     {}
   redisdata:
     {}

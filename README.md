@@ -2,7 +2,7 @@
 
 Cricket is a web quality auditing server. It runs Google Lighthouse, HTTP
 header checks, and Puppeteer-based page-weight measurements across one or
-more sites on a cron schedule, stores the results in PostgreSQL, and exposes
+more sites on a cron schedule, stores the results in SQLite, and exposes
 everything through an agent-native REST API.
 
 ## What it does
@@ -22,7 +22,7 @@ regressions over time.
 
 - **Python 3.12** · Django 6 · Django Ninja (REST API)
 - **Celery + Redis** — task queue and broker
-- **PostgreSQL 17** — primary store
+- **SQLite** — primary store
 - **Node.js 22 LTS** — Lighthouse 13 + Puppeteer
 - **Docker + Docker Compose** — development and production
 
@@ -106,7 +106,7 @@ to `.env` and edit as needed. Key variables:
 | `DJANGO_ENV` | `development` or `production` |
 | `DJANGO_SECRET_KEY` | Required in production |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated permitted hostnames |
-| `DATABASE_URL` | PostgreSQL connection string |
+| `DATABASE_URL` | SQLite path (default: `db.sqlite3` in project root) |
 | `BROKER_URL` | Redis URL for Celery broker |
 | `CACHE_URL` | Redis URL for Django cache |
 | `AWS_ACCESS_KEY_ID` etc. | S3-compatible storage (optional) |

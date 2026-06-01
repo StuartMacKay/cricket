@@ -17,7 +17,6 @@ dependencies = [
     "argon2-cffi",
     "gunicorn",
     "lxml",
-    "psycopg[binary]",
     "pydantic",
     "redis",
     "python-dateutil",
