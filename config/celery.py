@@ -38,22 +38,24 @@ app.conf.task_queue_max_priority = 10
 app.conf.task_default_priority = 5
 app.conf.task_default_queue = "pages"
 
-# Scans may be scheduled to run at a precise time (to the minute), but
-# since the code checks for overdue sites we can simply run every hour
-# at the risk of swamping workers
+# Check for overdue Jobs every 5 minutes. Jobs with well-defined schedules
+# (e.g. first of month, Monday mornings) will be triggered within 5 minutes
+# of their due time.
 app.conf.beat_schedule = {
-    "take-scans": {
-        "task": "sites.tasks.take_scans",
-        "schedule": crontab(minute="0"),  # every hour, on the hour
+    "check-overdue-jobs": {
+        "task": "sites.tasks.check_overdue_jobs",
+        "schedule": crontab(minute="*/5"),
     },
 }
 
 app.conf.task_routes = {
-    "sites.tasks.take_scans": {"queue": "sites"},
-    "sites.tasks.take_site_scan": {"queue": "sites"},
-    "lighthouse.tasks.take_lighthouse_scan": {"queue": "sites"},
-    "headers.tasks.take_header_scan": {"queue": "sites"},
-    "pageweight.tasks.take_weight_scan": {"queue": "sites"},
+    "sites.tasks.check_overdue_jobs":         {"queue": "sites"},
+    "lighthouse.tasks.take_lighthouse_run":   {"queue": "sites"},
+    "lighthouse.tasks.complete_run":          {"queue": "sites"},
+    "headers.tasks.take_header_run":          {"queue": "sites"},
+    "headers.tasks.complete_run":             {"queue": "sites"},
+    "pageweight.tasks.take_weight_run":       {"queue": "sites"},
+    "pageweight.tasks.complete_run":          {"queue": "sites"},
 }
 
 

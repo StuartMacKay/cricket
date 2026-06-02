@@ -1,16 +1,14 @@
-"""Management command to delete raw Lighthouse JSON reports older than 90 days.
+"""Delete raw Lighthouse JSON reports older than 90 days.
 
-The self-contained HTML report (html_report) is kept permanently.
-Only the raw JSON report (report) is pruned.
+The HTML report is kept permanently. Only the raw JSON (report field) is pruned.
 """
-
 import logging
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from lighthouse.models import PageResult
+from lighthouse.models import Page
 
 log = logging.getLogger(__name__)
 
@@ -19,26 +17,16 @@ class Command(BaseCommand):
     help = "Delete raw Lighthouse JSON reports older than 90 days"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--days",
-            type=int,
-            default=90,
-            help="Number of days after which reports are pruned (default: 90)",
-        )
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Print what would be deleted without actually deleting",
-        )
+        parser.add_argument("--days",    type=int, default=90)
+        parser.add_argument("--dry-run", action="store_true")
 
     def handle(self, *args, **options):
-        days = options["days"]
+        days    = options["days"]
         dry_run = options["dry_run"]
-        cutoff = timezone.now() - timedelta(days=days)
+        cutoff  = timezone.now() - timedelta(days=days)
 
-        results = PageResult.objects.filter(created__lt=cutoff).exclude(report="")
-
-        count = results.count()
+        pages = Page.objects.filter(created__lt=cutoff).exclude(report="")
+        count = pages.count()
         self.stdout.write(f"Found {count} report(s) older than {days} days")
 
         if dry_run:
@@ -46,11 +34,11 @@ class Command(BaseCommand):
             return
 
         deleted = 0
-        for result in results:
-            if result.report:
-                result.report.delete(save=False)
-                result.report = None
-                result.save(update_fields=["report"])
+        for page in pages:
+            if page.report:
+                page.report.delete(save=False)
+                page.report = None
+                page.save(update_fields=["report"])
                 deleted += 1
 
         self.stdout.write(self.style.SUCCESS(f"Deleted {deleted} report(s)"))

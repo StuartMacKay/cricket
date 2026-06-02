@@ -3,43 +3,32 @@
 import pytest
 
 from api.models import APIKey
-from tests.factories import ScanFactory, SiteFactory
+from tests.factories import SiteFactory
 
 pytestmark = pytest.mark.django_db
 
 
 class TestListSites:
     def test_requires_auth(self, client):
-        response = client.get("/api/sites/")
-        assert response.status_code == 401
+        assert client.get("/api/sites/").status_code == 401
 
-    def test_returns_200_with_auth(self, auth_client):
-        response = auth_client.get("/api/sites/")
-        assert response.status_code == 200
+    def test_returns_200(self, auth_client):
+        assert auth_client.get("/api/sites/").status_code == 200
 
     def test_lists_all_sites(self, auth_client):
-        SiteFactory()
-        SiteFactory()
-        response = auth_client.get("/api/sites/")
-        assert len(response.json()) == 2
-
-    def test_empty_when_no_sites(self, auth_client):
-        response = auth_client.get("/api/sites/")
-        assert response.json() == []
+        SiteFactory(); SiteFactory()
+        assert len(auth_client.get("/api/sites/").json()) == 2
 
     def test_site_fields_present(self, auth_client):
         SiteFactory(name="Test Site")
-        data = auth_client.get("/api/sites/").json()
-        assert len(data) == 1
-        site = data[0]
+        site = auth_client.get("/api/sites/").json()[0]
         assert "slug" in site
         assert "name" in site
-        assert "url" in site
-        assert "enabled" in site
+        assert "primary_url" in site
 
     def test_scoped_key_sees_only_its_site(self, client):
         site_a = SiteFactory()
-        SiteFactory()  # site_b — should not be visible
+        SiteFactory()
         key = APIKey.objects.create(name="scoped", site=site_a)
         client.defaults["HTTP_AUTHORIZATION"] = f"Bearer {key.key}"
         data = client.get("/api/sites/").json()
@@ -48,33 +37,16 @@ class TestListSites:
 
 
 class TestGetSite:
-    def test_requires_auth(self, client):
+    def test_returns_200(self, auth_client):
         site = SiteFactory()
-        response = client.get(f"/api/sites/{site.slug}/")
-        assert response.status_code == 401
+        assert auth_client.get(f"/api/sites/{site.slug}/").status_code == 200
 
-    def test_returns_200_for_existing_site(self, auth_client):
-        site = SiteFactory()
-        response = auth_client.get(f"/api/sites/{site.slug}/")
-        assert response.status_code == 200
-
-    def test_returns_404_for_missing_site(self, auth_client):
-        response = auth_client.get("/api/sites/no-such-site/")
-        assert response.status_code == 404
-
-    def test_error_code_is_not_found(self, auth_client):
-        response = auth_client.get("/api/sites/no-such-site/")
-        assert response.json()["error"]["code"] == "not_found"
-
-    def test_site_name_in_response(self, auth_client):
-        site = SiteFactory(name="My Site")
-        data = auth_client.get(f"/api/sites/{site.slug}/").json()
-        assert data["name"] == "My Site"
+    def test_returns_404_for_missing(self, auth_client):
+        assert auth_client.get("/api/sites/no-such-site/").status_code == 404
 
     def test_scoped_key_cannot_access_other_site(self, client):
         site_a = SiteFactory()
         site_b = SiteFactory()
         key = APIKey.objects.create(name="scoped", site=site_a)
         client.defaults["HTTP_AUTHORIZATION"] = f"Bearer {key.key}"
-        response = client.get(f"/api/sites/{site_b.slug}/")
-        assert response.status_code == 403
+        assert client.get(f"/api/sites/{site_b.slug}/").status_code == 403

@@ -1,1 +1,1 @@
-from . import scan, site  # noqa: F401
+from . import site  # noqa: F401

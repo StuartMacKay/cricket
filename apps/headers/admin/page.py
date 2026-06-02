@@ -1,30 +1,16 @@
 from django.contrib import admin
 
-from ..models import PageData
+from ..models import Page
 
 
-@admin.register(PageData)
-class PageDataAdmin(admin.ModelAdmin):
-    list_display = ("page", "status_code", "redirect_count")
-    list_filter = ("status_code",)
-    ordering = ("-created",)
-    search_fields = ("page__url",)
-    readonly_fields = (
-        "page",
-        "final_url",
-        "status_code",
-        "redirect_count",
-        "headers",
-        "error",
-        "created",
-        "modified",
-    )
+@admin.register(Page)
+class PageAdmin(admin.ModelAdmin):
+    list_display    = ("url", "status_code", "redirect_count", "run")
+    list_filter     = ("status_code",)
+    ordering        = ("-created",)
+    search_fields   = ("url",)
+    readonly_fields = ("run", "url", "final_url", "status_code", "redirect_count", "headers", "error", "created", "modified")
 
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser
+    def has_add_permission(self, request, obj=None):    return False
+    def has_change_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return request.user.is_superuser

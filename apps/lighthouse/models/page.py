@@ -20,70 +20,72 @@ LIGHTHOUSE_SCRIPT = os.path.join(settings.NODE_DIR, "src", "lighthouse.js")
 
 
 def audit_report_path(instance, filename):
-    slug = instance.page.scan.site.slug
+    slug = instance.run.job.site.slug
     name, extension = os.path.splitext(os.path.basename(filename))
-    year = "%d" % instance.created.year
+    year  = "%d"  % instance.created.year
     month = "%02d" % instance.created.month
-    day = "%02d" % instance.created.day
-    hour = "%02d" % instance.created.hour
-    name = "{}-{}{}".format(name, instance.pk, extension)
+    day   = "%02d" % instance.created.day
+    hour  = "%02d" % instance.created.hour
+    name  = f"{name}-{instance.pk}{extension}"
     return os.path.join("audit", slug, year, month, day, hour, name)
 
 
-class PageResult(TimeStampedModel, models.Model):
-    """Lighthouse audit files and status for a single page in a run."""
+class Page(TimeStampedModel, models.Model):
+    """Lighthouse audit results for a single URL in a Run."""
 
     class Meta:
-        verbose_name = _("Page Result")
-        verbose_name_plural = _("Page Results")
+        verbose_name = _("Page")
+        verbose_name_plural = _("Pages")
+        unique_together = [("run", "url")]
 
-    page = models.OneToOneField(
-        "sites.Page",
+    run = models.ForeignKey(
+        "Run",
         on_delete=models.CASCADE,
-        related_name="lighthouse_result",
-        verbose_name=_("Page"),
+        related_name="pages",
+        verbose_name=_("Run"),
     )
+
+    url = models.URLField(max_length=2000, verbose_name=_("URL"))
 
     report = models.FileField(
         upload_to=audit_report_path,
+        null=True, blank=True,
         verbose_name=_("Report"),
-        help_text=_("The raw Lighthouse JSON report; pruned after 90 days"),
-        null=True,
-        blank=True,
+        help_text=_("Raw Lighthouse JSON report; pruned after 90 days."),
     )
 
     html_report = models.FileField(
         upload_to=audit_report_path,
+        null=True, blank=True,
         verbose_name=_("HTML Report"),
-        help_text=_(
-            "The self-contained Lighthouse HTML report, "
-            "identical to Chrome's Lighthouse panel output"
-        ),
-        null=True,
-        blank=True,
+        help_text=_("Self-contained Lighthouse HTML report."),
     )
 
     audited = models.BooleanField(
+        default=False,
         verbose_name=_("Audited"),
-        help_text=_(
-            "The page was audited successfully, with no errors or warnings reported"
-        ),
+        help_text=_("True when the audit completed without errors or warnings."),
     )
 
     def __str__(self):
-        return str(self.page)
+        return self.url
 
     def read_report(self) -> dict:
         with self.report.open() as fp:
             return json.load(fp)
 
-    def _upsert_audit_definitions(self, data: dict) -> dict[str, "AuditDefinition"]:
+    # ------------------------------------------------------------------
+    # Metric extraction
+    # ------------------------------------------------------------------
+
+    def _upsert_audit_definitions(self, data: dict) -> dict:
         from .audit import AuditDefinition
+        from lighthouse.audit_ids import stable_audit_id
 
         audit_meta: dict[str, dict] = {}
         for key, audit in data["audits"].items():
             audit_meta[key] = {
-                "title": audit.get("title", key),
+                "title":       audit.get("title", key),
                 "description": audit.get("description", ""),
             }
 
@@ -92,11 +94,9 @@ class PageResult(TimeStampedModel, models.Model):
                 aid = ref["id"]
                 if aid in audit_meta and "category_id" not in audit_meta[aid]:
                     audit_meta[aid]["category_id"] = key
-                    audit_meta[aid]["weight"] = ref.get("weight", 0)
+                    audit_meta[aid]["weight"]      = ref.get("weight", 0)
 
-        from lighthouse.audit_ids import stable_audit_id
-
-        definitions: dict[str, AuditDefinition] = {}
+        definitions = {}
         for audit_id, meta in audit_meta.items():
             if "category_id" not in meta:
                 continue
@@ -105,29 +105,27 @@ class PageResult(TimeStampedModel, models.Model):
                 audit_id=cricket_id,
                 defaults={
                     "category_id": meta["category_id"],
-                    "title": meta["title"],
+                    "title":       meta["title"],
                     "description": meta.get("description", ""),
-                    "weight": meta.get("weight", 0),
+                    "weight":      meta.get("weight", 0),
                 },
             )
-            # Key by Lighthouse ID so _save_page_audits can look up by report key
             definitions[audit_id] = obj
 
         return definitions
 
     def _save_page_categories(self, data: dict):
         from .audit import PageCategory
-
-        PageCategory.objects.filter(page=self.page).delete()
+        PageCategory.objects.filter(page=self).delete()
         for key, category in data["categories"].items():
             if category.get("score") is None:
                 continue
-            score = int(category["score"] * 100)
+            score  = int(category["score"] * 100)
             rating = Rating.get_rating(score)
             if rating is None:
                 continue
             PageCategory.objects.create(
-                page=self.page,
+                page=self,
                 category_id=key,
                 title=category.get("title", key),
                 score=score,
@@ -136,12 +134,10 @@ class PageResult(TimeStampedModel, models.Model):
 
     def _save_page_audits(self, data: dict, definitions: dict):
         from .audit import PageAudit
-
-        PageAudit.objects.filter(page=self.page).delete()
-
+        PageAudit.objects.filter(page=self).delete()
         for key, category in data["categories"].items():
             for ref in category.get("auditRefs", []):
-                audit_id = ref["id"]
+                audit_id  = ref["id"]
                 audit_def = definitions.get(audit_id)
                 if audit_def is None:
                     continue
@@ -149,93 +145,79 @@ class PageResult(TimeStampedModel, models.Model):
                 raw_score = lhr_audit.get("score")
 
                 if raw_score is None:
-                    score = None
-                    rating = None
-                    value = None
-                    units = ""
+                    score, rating, value, units = None, None, None, ""
                 elif key == "performance" and ref.get("weight", 0) > 0:
-                    score = int(raw_score * 100)
+                    score  = int(raw_score * 100)
                     rating = Rating.get_rating(score)
-                    value = lhr_audit.get("numericValue")
-                    units = lhr_audit.get("numericUnit", "")
+                    value  = lhr_audit.get("numericValue")
+                    units  = lhr_audit.get("numericUnit", "")
                     if units == "millisecond" and value is not None:
                         value = round(value)
                     elif units == "unitless" and value is not None:
                         value = round(value, 3)
                 else:
-                    score = int(raw_score * 100)
+                    score  = int(raw_score * 100)
                     rating = Rating.get_rating(score)
-                    value = None
-                    units = ""
+                    value, units = None, ""
 
-                if PageAudit.objects.filter(page=self.page, audit=audit_def).exists():
+                if PageAudit.objects.filter(page=self, audit=audit_def).exists():
                     continue
 
                 PageAudit.objects.create(
-                    page=self.page,
-                    audit=audit_def,
-                    score=score,
-                    rating=rating,
-                    value=value,
-                    units=units,
+                    page=self, audit=audit_def,
+                    score=score, rating=rating,
+                    value=value, units=units,
                 )
 
     def collect_metrics(self, data: dict):
-        """Populate PageCategory and PageAudit from a Lighthouse report dict."""
         definitions = self._upsert_audit_definitions(data)
         self._save_page_categories(data)
         self._save_page_audits(data, definitions)
 
+    # ------------------------------------------------------------------
+    # Lighthouse subprocess
+    # ------------------------------------------------------------------
+
     def audit(self):
-        run = self.page.scan.lighthouse_run.get()
-        extra = {"url": self.page.url}
+        extra = {"url": self.url}
         log.info("Page audit started", extra=extra)
 
         html_fd, html_path = tempfile.mkstemp(suffix=".html")
         os.close(html_fd)
 
+        cli_flags = f"--cli-flags-path={self.run.config_file}"
+
         try:
             try:
                 result = subprocess.run(
-                    [
-                        LIGHTHOUSE_SCRIPT,
-                        self.page.url,
-                        "--quiet",
-                        "--cli-flags-path=%s" % run.config_file,
-                        "--html-output-path=%s" % html_path,
-                    ],
+                    [LIGHTHOUSE_SCRIPT, self.url, "--quiet", cli_flags,
+                     f"--html-output-path={html_path}"],
                     capture_output=True,
                     timeout=300,
                 )
             except subprocess.TimeoutExpired:
                 log.error("Page audit timed out", extra=extra)
-                fp = io.BytesIO(b"Audit timed out after 300 seconds")
-                self.report.save("lighthouse.txt", File(fp), save=False)
+                self.report.save("lighthouse.txt", File(io.BytesIO(b"Timed out after 300s")), save=False)
                 self.audited = False
                 self.save()
                 return
 
             if result.returncode == 0:
-                fp = io.BytesIO(result.stdout)
-                self.report.save("lighthouse.json", File(fp), save=False)
-
-                with open(html_path, "rb") as html_fp:
-                    self.html_report.save("lighthouse.html", File(html_fp), save=False)
-
+                self.report.save("lighthouse.json", File(io.BytesIO(result.stdout)), save=False)
+                with open(html_path, "rb") as fp:
+                    self.html_report.save("lighthouse.html", File(fp), save=False)
                 data = json.loads(result.stdout)
-
                 if "runtimeError" not in data and not data["runWarnings"]:
                     self.collect_metrics(data)
                     self.audited = True
-                    log.info("Page was audited", extra=extra)
+                    log.info("Page audited", extra=extra)
                 else:
                     self.audited = False
-                    log.info("Page was not audited", extra=extra)
+                    log.info("Page not audited (errors/warnings)", extra=extra)
             else:
-                fp = io.BytesIO(result.stderr)
-                self.report.save("lighthouse.txt", File(fp), save=False)
+                self.report.save("lighthouse.txt", File(io.BytesIO(result.stderr)), save=False)
                 self.audited = False
-                log.error("Page was not audited", extra=extra)
+                log.error("Page audit failed", extra=extra)
 
             self.save()
         finally:

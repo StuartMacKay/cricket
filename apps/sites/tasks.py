@@ -1,43 +1,37 @@
 import logging
 
 from celery import shared_task
+from django.utils import timezone
 
 log = logging.getLogger(__name__)
 
 
 @shared_task
-def take_scans():
-    """Trigger scans for all overdue enabled sites."""
-    from sites.models import Site
-    for site in Site.objects.overdue():
-        take_site_scan.delay(site.pk)
+def check_overdue_jobs():
+    """Trigger a new Run for every enabled Job whose crontab is overdue.
 
+    Iterates all concrete BaseJob subclasses registered in INSTALLED_APPS.
+    Each Job subclass defines TASK_NAME pointing to its collection task.
+    """
+    from django.apps import apps
+    from sites.models import BaseJob
 
-@shared_task
-def take_site_scan(site_pk: int):
-    """Create a Scan, build the shared page list, and dispatch enabled tool tasks."""
-    from sites.models import Page, Site
+    now = timezone.now()
+    triggered = 0
 
-    site = Site.objects.get(pk=site_pk)
-    scan = site.create_scan()
+    for model in apps.get_models():
+        if not (isinstance(model, type) and issubclass(model, BaseJob) and not model._meta.abstract):
+            continue
+        for job in model.objects.filter(enabled=True).exclude(crontab=""):
+            if job.is_overdue(now):
+                try:
+                    job.trigger_run()
+                    triggered += 1
+                    log.info(
+                        "Job triggered",
+                        extra={"job": str(job), "task": job.TASK_NAME},
+                    )
+                except Exception:
+                    log.exception("Failed to trigger job", extra={"job": str(job)})
 
-    try:
-        urls = list(site.get_urls())
-    except Exception:
-        log.exception("Failed to discover pages", extra={"site": site.slug})
-        urls = []
-
-    for url in urls:
-        Page.objects.get_or_create(scan=scan, url=str(url))
-
-    if site.enable_lighthouse:
-        from lighthouse.tasks import take_lighthouse_scan
-        take_lighthouse_scan.delay(scan.pk)
-
-    if site.enable_headers:
-        from headers.tasks import take_header_scan
-        take_header_scan.delay(scan.pk)
-
-    if site.enable_pageweight:
-        from pageweight.tasks import take_weight_scan
-        take_weight_scan.delay(scan.pk)
+    log.info("Overdue job check complete", extra={"triggered": triggered})

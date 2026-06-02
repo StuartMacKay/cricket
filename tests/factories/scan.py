@@ -1,25 +1,62 @@
 import factory
 
-from lighthouse.models import Run as LighthouseRun
-from sites.models import Scan
+from headers.models import Job as HeadersJob, Run as HeadersRun
+from lighthouse.models import Job as LighthouseJob, Run as LighthouseRun
+from pageweight.models import Job as PageweightJob, Run as PageweightRun
 
 
-class ScanFactory(factory.django.DjangoModelFactory):
-    """Creates a sites.Scan — the parent audit record used by the API."""
-
+class LighthouseJobFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = Scan
+        model = LighthouseJob
 
-    site = factory.SubFactory("tests.factories.SiteFactory")
-    platform = "mobile"
-    status = Scan.Status.PENDING
+    site               = factory.SubFactory("tests.factories.SiteFactory")
+    url_source         = "url_list"
+    url_value          = "https://example.com/"
+    platform           = "mobile"
+    cat_performance    = True
+    cat_accessibility  = True
+    cat_best_practices = True
+    cat_seo            = True
 
 
 class LighthouseRunFactory(factory.django.DjangoModelFactory):
-    """Creates a lighthouse.Run attached to a sites.Scan."""
-
     class Meta:
         model = LighthouseRun
 
-    scan = factory.SubFactory(ScanFactory)
+    job    = factory.SubFactory(LighthouseJobFactory)
     status = LighthouseRun.Status.PENDING
+
+
+class HeadersJobFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HeadersJob
+
+    site       = factory.SubFactory("tests.factories.SiteFactory")
+    url_source = "url_list"
+    url_value  = "https://example.com/"
+
+
+class HeadersRunFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HeadersRun
+
+    job    = factory.SubFactory(HeadersJobFactory)
+    status = HeadersRun.Status.PENDING
+
+
+class PageweightJobFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PageweightJob
+
+    site       = factory.SubFactory("tests.factories.SiteFactory")
+    url_source = "url_list"
+    url_value  = "https://example.com/"
+    device     = "mobile"
+
+
+class PageweightRunFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PageweightRun
+
+    job    = factory.SubFactory(PageweightJobFactory)
+    status = PageweightRun.Status.PENDING

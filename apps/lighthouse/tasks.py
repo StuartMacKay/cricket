@@ -1,26 +1,28 @@
 import logging
 
-from celery import chain, chord, group, shared_task
+from celery import chord, group, shared_task
 
 log = logging.getLogger(__name__)
 
 
 @shared_task
-def take_lighthouse_scan(scan_pk: int):
-    """Create a lighthouse Run for a sites.Scan and run the full audit pipeline."""
+def take_lighthouse_run(job_pk: int):
+    """Create a Run for a lighthouse.Job, discover pages, and audit them."""
     import json
     import os
     import tempfile
 
-    from sites.models import Scan
-    from .models import Run
+    from .models import Job, Page, Run
 
-    scan = Scan.objects.select_related("site").get(pk=scan_pk)
-    site = scan.site
+    job  = Job.objects.select_related("site").get(pk=job_pk)
+    site = job.site
 
-    config = {**site.extra_config, "formFactor": site.platform}
-    tmpdir = tempfile.gettempdir()
-    lh_dir = os.path.join(tmpdir, "lighthouse-run")
+    config = {"formFactor": job.platform}
+    only   = job.get_only_categories()
+    if only:
+        config["onlyCategories"] = only
+
+    lh_dir = os.path.join(tempfile.gettempdir(), "lighthouse-run")
     os.makedirs(lh_dir, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="w", prefix=site.slug, suffix=".json", dir=lh_dir, delete=False
@@ -29,39 +31,37 @@ def take_lighthouse_scan(scan_pk: int):
         config_file = fp.name
 
     run = Run.objects.create(
-        scan=scan,
+        job=job,
         status=Run.Status.RUNNING,
         config_file=config_file,
     )
 
-    mark_failed_task = mark_failed.si(run.pk)
-    chain(
-        audit_pages.s(run.pk),
-        complete_run.s(run.pk),
-    ).on_error(mark_failed_task).delay()
+    pks = []
+    try:
+        for url in job.get_urls():
+            page, _ = Page.objects.get_or_create(run=run, url=str(url))
+            pks.append(page.pk)
+    except Exception:
+        log.exception("Failed to discover pages", extra={"job": job_pk})
+        run.delete_config_file()
+        run.status = Run.Status.FAILED
+        run.save(update_fields=["status"])
+        return
 
+    if not pks:
+        run.complete()
+        return
 
-@shared_task
-def audit_pages(result, run_pk: int):
-    from .models import Run
-    pks = list(Run.objects.get(pk=run_pk).get_page_keys())
-    return chord(
+    chord(
         group(audit_page.s(pk) for pk in pks),
-        complete_run.si(run_pk),
-    ).delay()
+        complete_run.si(run.pk),
+    ).apply_async(link_error=mark_failed.si(run.pk))
 
 
 @shared_task(bind=True)
 def audit_page(self, page_pk: int):
-    from sites.models import Page
-    from .models import PageResult
-
-    page = Page.objects.get(pk=page_pk)
-    page_result, _ = PageResult.objects.get_or_create(
-        page=page,
-        defaults={"audited": False},
-    )
-    page_result.audit()
+    from .models import Page
+    Page.objects.get(pk=page_pk).audit()
 
 
 @shared_task
@@ -78,7 +78,5 @@ def mark_failed(run_pk: int):
         run.delete_config_file()
         run.status = Run.Status.FAILED
         run.save(update_fields=["status"])
-        run.scan.status = "failed"
-        run.scan.save(update_fields=["status"])
     except Run.DoesNotExist:
         pass
