@@ -123,22 +123,19 @@ GET  /api/sites/{slug}/headers/jobs/
 GET  /api/sites/{slug}/pageweight/jobs/
 GET  /api/sites/{slug}/toolbar/jobs/
 
-# Per-tool run history and results
+# Per-tool run history and results (read-only — runs are created by scheduled Jobs)
 GET  /api/sites/{slug}/lighthouse/runs/
 GET  /api/sites/{slug}/lighthouse/runs/latest/
-POST /api/sites/{slug}/lighthouse/runs/
 GET  /api/sites/{slug}/lighthouse/runs/{id}/
 GET  /api/sites/{slug}/lighthouse/runs/{id}/pages/
 GET  /api/sites/{slug}/lighthouse/runs/{id}/pages/{page_id}/
 
 GET  /api/sites/{slug}/headers/runs/
 GET  /api/sites/{slug}/headers/runs/latest/
-POST /api/sites/{slug}/headers/runs/
 GET  /api/sites/{slug}/headers/runs/{id}/pages/
 
 GET  /api/sites/{slug}/pageweight/runs/
 GET  /api/sites/{slug}/pageweight/runs/latest/
-POST /api/sites/{slug}/pageweight/runs/
 GET  /api/sites/{slug}/pageweight/runs/{id}/pages/
 
 GET  /api/sites/{slug}/toolbar/runs/
@@ -240,11 +237,16 @@ across tools.
 - **Make each tool app self-contained**: its own Job model, Run model, Page model,
   tasks, admin, and API router. The `api` app assembles routers with one line per tool.
 - **Add "Trigger run" admin action** to each tool's `JobAdmin` for on-demand triggering
-  from the Django admin without needing an API key.
+  from the Django admin without needing an API key. Agents do not trigger runs — runs
+  are created by scheduled Jobs or by operators via the admin.
 - **Restructure the API**: tool-first URL layout as above. Remove `/scans/` endpoints.
-  Add per-tool `/jobs/` endpoints. Add Job configuration filters on run list and `/latest/`
-  endpoints (`?cat_performance=true`, `?panel_sql=true`, etc.).
-- **Update `AGENTS.md`** and `agent-context` to reflect the new structure.
+  Remove agent-triggered run endpoints (`POST /runs/`). Add per-tool `/jobs/` endpoints.
+  Add Job configuration filters on run list and `/latest/` endpoints
+  (`?cat_performance=true`, `?panel_sql=true`, etc.).
+- **Add `AGENT_CONTEXT` to each tool's `api.py`**: the introspection endpoint
+  auto-discovers these and includes them in `GET /api/agent-context/`. No changes to
+  `introspection.py` are needed when a new tool is added.
+- **Update `AGENTS.md`** to reflect the new structure.
 - **Single focused commit** — this touches every app and every test.
 
 ---
