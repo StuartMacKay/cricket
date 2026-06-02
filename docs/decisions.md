@@ -6,6 +6,36 @@ wonder why?" If yes, log it. If it's obvious from the code, skip it.
 
 ---
 
+## 2026-06-02
+
+### Toolbox architecture: Job replaces Site as configuration unit
+
+The current `Site` model conflates two responsibilities: **identity** (a stable name
+agents and humans use to refer to a site) and **configuration** (what URLs to audit,
+which tools to run, on what schedule). Separating these is the key structural change
+in Stage A.
+
+`sites.Job` becomes the configuration unit: one collector, one URL source, one
+schedule. `sites.Site` becomes identity only: name, slug, primary_url, description.
+The `environment` field moves from `Scan` to `Job` — a Job configured to run locally
+is always a local Job.
+
+Collectors are independent. Each Job's Run completes on its own without coordination.
+The URL string is the join key across tools and across time; no shared page list or
+parent Scan record is needed. An agent wanting a cross-tool picture of a page queries
+each tool's run list for that URL.
+
+This removes `sites.Scan`, `sites.Page`, `signal_scan_complete`, and all enable flags
+on `Site`. A collector is enabled for a site by the existence of a Job for it.
+
+**Why not a Project model for multi-tenancy?** Isolation between teams is better
+handled by running separate cricket servers. Within a server, different teams (e.g.
+dev and support) typically need access to the same data. No permission modelling in
+the application is needed; API key scoping to a Site is sufficient for agent access
+control.
+
+---
+
 ## 2026-05-30
 
 ### Structured JSON as the primary output format
