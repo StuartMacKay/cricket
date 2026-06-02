@@ -8,6 +8,28 @@ wonder why?" If yes, log it. If it's obvious from the code, skip it.
 
 ## 2026-06-02
 
+### Per-tool Job models with typed configuration fields
+
+A generic `sites.Job` with `config = JSONField` for collector-specific settings puts
+structure that belongs in the model into a blob. It cannot be validated at the model
+level, renders poorly in the admin (raw JSON editor), and makes filtering by
+configuration — "which Jobs run performance audits?" — require JSON field lookups.
+
+Each tool's Job model instead carries its configuration as typed fields:
+`lighthouse.Job` has `platform` (CharField with choices) and `categories`
+(MultiSelectField); `pageweight.Job` has `device`; `debugtoolbar.Job` has `panels`
+(MultiSelectField, profiling off by default) and `cricket_secret` (CharField). Common
+fields (site FK, url_source, url_value, environment, crontab, enabled) live in an
+abstract `BaseJob`. Tool-specific config is translated to the tool's native format at
+dispatch time — Lighthouse CLI flags, DDT companion endpoint query parameters, etc.
+
+This applies consistently to the API: per-tool job endpoints expose typed fields
+directly, so an agent can filter `?categories=performance` without parsing JSON.
+
+Each tool app is fully self-contained: Job model, Run model, Page model, tasks, admin,
+and API router. The `api` app assembles routers with one line per tool. Adding a new
+collector adds one app and one registration.
+
 ### Toolbox architecture: Job replaces Site as configuration unit
 
 The current `Site` model conflates two responsibilities: **identity** (a stable name

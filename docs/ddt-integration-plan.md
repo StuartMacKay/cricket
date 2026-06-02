@@ -16,15 +16,20 @@ DDT slots into cricket as a standard collector — a `debugtoolbar` app followin
 same Job/Run/Page pattern as `lighthouse`, `headers`, and `pageweight`.
 
 ```
-sites.Job  (collector="toolbar", url_source=..., environment="local", crontab=...)
+debugtoolbar.Job  (site FK, panels, url_source, environment="local", crontab=...)
   └── debugtoolbar.Run   (status, page_count)
         └── debugtoolbar.Page  (url · scalar metrics · raw JSONFields)
 ```
 
-A DDT Job is configured like any other Job: attached to a Site, with its own URL
-source, schedule, and `environment` field. Setting `environment="local"` on the Job
-makes it unambiguous that data came from a developer machine. Agents filter by
-`?environment=local` on the toolbar runs endpoint to see only DDT data.
+Like all per-tool Job models, `debugtoolbar.Job` carries its configuration as typed
+fields. The `panels` MultiSelectField (sql, cache, templates, signals, request,
+profiling) replaces the generic `config["panels"]` JSON approach — the admin renders
+checkboxes, panel selection is validated at the model level, and the selected panels
+are translated to the companion endpoint's `?panels=` query parameter at dispatch time.
+
+Setting `environment="local"` on the Job makes it unambiguous that data came from a
+developer machine. Agents filter by `?environment=local` on the toolbar runs endpoint
+to see only DDT data.
 
 The distinction from other collectors:
 
@@ -77,8 +82,8 @@ django_cricket/
 4. Returns a JSON response mapping panel names to their structured stats.
 
 **Authentication**: Protected by shared secret + `INTERNAL_IPS`. The secret is stored
-in the Job's `config` JSONField (`config["cricket_secret"]`) — no new configuration
-model needed, and different Jobs can use different secrets.
+in `debugtoolbar.Job.cricket_secret` — a typed field, not a JSON blob. Different Jobs
+can use different secrets, configured in the admin without editing JSON.
 
 **Target app setup:**
 ```python
@@ -94,8 +99,8 @@ Cricket sends the secret in a request header when fetching panel data. Installat
 `pip install django-cricket`.
 
 **Panel selection**: the endpoint accepts `?panels=SQLPanel,CachePanel` so cricket
-can request only the panels it needs. The Job's `config["panels"]` list controls
-which panels to request (default: all).
+can request only the panels it needs. `debugtoolbar.Job.panels` controls which panels
+are requested — profiling excluded from the default.
 
 ---
 
@@ -125,16 +130,20 @@ A DDT Job has its own crontab and URL source, independent of Lighthouse or pagew
 Jobs for the same site. Typical configuration:
 
 ```
-Job A: site=mysite, collector=lighthouse,  crontab="0 0 1 * *"  (monthly)
-Job B: site=mysite, collector=pageweight,  crontab="0 * * * *"   (hourly)
-Job C: site=mysite, collector=toolbar,     crontab="0 9 * * 1-5" (weekday mornings)
-         environment=local, url_source=url_list, url_value="https://localhost:8000/\n..."
+lighthouse.Job:    site=mysite, platform=mobile, categories=[performance, seo],
+                   crontab="0 0 1 * *"  (monthly)
+
+pageweight.Job:    site=mysite, device=mobile,
+                   crontab="0 * * * *"  (hourly)
+
+debugtoolbar.Job:  site=mysite, panels=[sql, cache, templates],
+                   environment=local, url_source=url_list,
+                   url_value="https://localhost:8000/\nhttps://localhost:8000/about/",
+                   crontab="0 9 * * 1-5"  (weekday mornings)
 ```
 
-Job C runs against localhost; the other Jobs run against staging or production. The
-`environment` field on each Job makes provenance explicit. This replaces the
-`enable_toolbar` flag approach that was considered earlier: a Job existing is the
-enablement signal.
+The `environment` field on each Job makes provenance explicit. A Job existing is the
+enablement signal — no enable flag on Site.
 
 ---
 
@@ -186,10 +195,25 @@ The remote creates a new `debugtoolbar.Run` and its pages, preserving the source
 
 Create `apps/debugtoolbar/` following the `headers` app as the reference pattern.
 
+**`apps/debugtoolbar/models/job.py`**
+```python
+class Job(BaseJob):
+    panels = MultiSelectField(
+        choices=["sql", "cache", "templates", "signals", "request", "profiling"],
+        default=["sql", "cache", "templates", "signals", "request"],
+        # profiling excluded: expensive, off by default in DDT itself
+    )
+    cricket_secret = CharField(max_length=100, blank=True,
+        help_text="Shared secret for /__cricket__/toolbar/ endpoint authentication")
+```
+
+Panel selection and the companion endpoint secret are explicit fields — no JSON blob.
+The `cricket_secret` field replaces `Site.extra_config["cricket_secret"]`.
+
 **`apps/debugtoolbar/models/run.py`**
 ```python
 class Run(TimeStampedModel, models.Model):
-    job = ForeignKey("sites.Job", CASCADE, related_name="toolbar_runs")
+    job = ForeignKey(Job, CASCADE, related_name="runs")
     status = CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     page_count = IntegerField(null=True, blank=True)
 ```
@@ -237,7 +261,7 @@ complete_toolbar_run(run_pk) → sets status=COMPLETE, page_count
 1. The page itself — triggers DDT data collection, returns `store_id` in HTML.
 2. `/__cricket__/toolbar/?store_id=<id>` — returns structured panel JSON.
 
-The `CRICKET_SECRET` is read from `job.config["cricket_secret"]`.
+The `CRICKET_SECRET` is read from `job.cricket_secret` (a typed field on the Job model).
 
 Checks `settings.DDT_COLLECTION_ENABLED` at the top; raises a non-retrying exception
 if False, so the Run transitions to `failed` with a clear message.
@@ -326,8 +350,10 @@ apps/
   debugtoolbar/
     __init__.py
     apps.py
+    api.py                   (toolbar router — registered in api/api.py)
     admin/
       __init__.py
+      job.py
       run.py
       page.py
     management/
@@ -336,12 +362,10 @@ apps/
     migrations/
     models/
       __init__.py
+      job.py
       run.py
       page.py
     tasks.py
-  api/
-    routers/
-      toolbar.py
   sites/
     management/
       commands/
@@ -376,8 +400,8 @@ django_cricket/
    `INTERNAL_IPS` and requires the shared secret.
 
 2. **Companion endpoint.** Protected by `INTERNAL_IPS` + shared secret in request header.
-   Secret stored in `Job.config["cricket_secret"]` — different Jobs can use different
-   secrets.
+   Secret stored in `debugtoolbar.Job.cricket_secret` — a typed field; different Jobs
+   can use different secrets, managed in the admin without editing JSON.
 
 3. **Raw detail endpoint.** `GET /toolbar/runs/{id}/pages/{id}/` requires an admin API
    key. The list endpoint (scalar stats only) is accessible to site-scoped keys.
@@ -395,7 +419,8 @@ django_cricket/
 | Question | Decision |
 |---|---|
 | Companion package vs. shared Redis | Companion package (`django-cricket`) |
-| Panels to collect | All panels; Job `config["panels"]` narrows selection |
+| Companion secret storage | `debugtoolbar.Job.cricket_secret` typed field — not `Site.extra_config` |
+| Panels to collect | `debugtoolbar.Job.panels` MultiSelectField; profiling off by default |
 | Cadence | Separate Job with its own crontab — not coupled to other collectors |
 | Enable/disable | Job existence is the signal — no enable flag on Site |
 | Environment provenance | `Job.environment` field; preserved on push |

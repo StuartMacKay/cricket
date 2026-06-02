@@ -22,8 +22,8 @@ schedule. A `Job` is the unit of configuration: one collector, one URL source, o
 schedule. A `Run` is one execution of a Job.
 
 ```
-sites.Site   (stable identity — what agents and humans refer to)
-  └── sites.Job  (one collector · one URL source · one schedule)
+sites.Site    (stable identity — what agents and humans refer to)
+  └── <collector>.Job  (per-tool configuration · URL source · schedule)
         └── <collector>.Run   (one execution of a Job)
               └── <collector>.Page  (one URL · collector-specific results)
 ```
@@ -34,56 +34,82 @@ sites.Site   (stable identity — what agents and humans refer to)
 name, slug, primary_url, description
 ```
 
-**`sites.Job`** — all configuration lives here.
+**Job models** — each tool owns its Job model with typed, tool-specific fields.
+Common fields live in a shared abstract base; tool-specific configuration is explicit
+rather than stored in a JSON blob.
 
-```
-site          FK(Site)
-collector     CharField  [lighthouse | headers | pageweight | toolbar | ...]
-url_source    CharField  [sitemap_url | sitemap_file | url_list]
-url_value     TextField  (the sitemap URL, file path, or newline-separated URL list)
-config        JSONField  (collector-specific: Lighthouse flags, platform, panel list…)
-environment   CharField  [local | staging | production | '']
-crontab       CharField
-enabled       BooleanField
+```python
+# Abstract base — fields shared by every Job model
+class BaseJob(TimeStampedModel):
+    site        = FK(Site)
+    url_source  = CharField  [sitemap_url | sitemap_file | url_list]
+    url_value   = TextField  (sitemap URL, file path, or newline-separated URL list)
+    environment = CharField  [local | staging | production | '']
+    crontab     = CharField
+    enabled     = BooleanField
+
+# Per-tool Job models with typed configuration fields
+class lighthouse.Job(BaseJob):
+    platform    = CharField  [mobile | desktop]
+    categories  = MultiSelectField  [performance | accessibility | best-practices | seo]
+
+class headers.Job(BaseJob):
+    pass  # no tool-specific configuration
+
+class pageweight.Job(BaseJob):
+    device      = CharField  [mobile | desktop]
+
+class debugtoolbar.Job(BaseJob):
+    panels      = MultiSelectField  [sql | cache | templates | signals | request | profiling]
+                  # profiling excluded from default — expensive and off by default in DDT
 ```
 
-One Job per collector per site. Different cadences for the same site → separate Jobs.
-The `environment` field records where collection happens (useful when a local instance
-pushes to a shared server). Enable/disable a collector by toggling the Job.
+Tool-specific config (Lighthouse CLI flags, DDT panel query params) is derived from
+these fields at dispatch time — not stored as a blob. Different cadences or different
+scopes for the same site → separate Jobs.
 
 **Per-collector models** — each collector owns its page list. No shared URL model.
 
 ```
-lighthouse.Run    → FK(sites.Job)
+lighthouse.Run    → FK(lighthouse.Job)
 lighthouse.Page   → FK(lighthouse.Run)  [url · report files · audited flag]
   └── lighthouse.PageCategory  → FK(lighthouse.Page)
   └── lighthouse.PageAudit     → FK(lighthouse.Page)
   └── lighthouse.AuditDefinition  (stable slugs — see audit_ids.py)
 
-headers.Run   → FK(sites.Job)
+headers.Run   → FK(headers.Job)
 headers.Page  → FK(headers.Run)   [url · headers · status_code · redirect_count]
 
-pageweight.Run  → FK(sites.Job)
+pageweight.Run  → FK(pageweight.Job)
 pageweight.Page → FK(pageweight.Run)  [url · transfer sizes by type]
   └── pageweight.Resource  → FK(pageweight.Page)
 
-debugtoolbar.Run  → FK(sites.Job)
-debugtoolbar.Page → FK(debugtoolbar.Run)  [url · panel data]
+debugtoolbar.Run  → FK(debugtoolbar.Job)
+debugtoolbar.Page → FK(debugtoolbar.Run)  [url · scalar panel metrics · raw JSONFields]
 ```
 
 ---
 
 ## API structure
 
-Tool-first URL layout. An agent working with one tool never has to know about others.
+Tool-first URL layout. Each tool contributes its own router independently; the `api`
+app assembles them. An agent working with one tool never has to know about others.
 The URL string is the join key across tools and across time.
 
 ```
 GET  /api/sites/
 GET  /api/sites/{slug}/
-GET  /api/sites/{slug}/jobs/
-GET  /api/sites/{slug}/jobs/{id}/
 
+# Per-tool job configuration (typed fields — no JSON blob)
+GET  /api/sites/{slug}/lighthouse/jobs/
+POST /api/sites/{slug}/lighthouse/jobs/
+GET  /api/sites/{slug}/lighthouse/jobs/{id}/
+
+GET  /api/sites/{slug}/headers/jobs/
+GET  /api/sites/{slug}/pageweight/jobs/
+GET  /api/sites/{slug}/toolbar/jobs/
+
+# Per-tool run history and results
 GET  /api/sites/{slug}/lighthouse/runs/
 GET  /api/sites/{slug}/lighthouse/runs/latest/
 POST /api/sites/{slug}/lighthouse/runs/
@@ -108,7 +134,13 @@ GET  /api/sites/{slug}/toolbar/runs/{id}/pages/{page_id}/
 ```
 
 Filter parameters on run list endpoints: `?environment=`, `?status=`, date range.
-Results for a given URL across time: filter by URL on the pages endpoint.
+Filter on job list endpoints: `?categories=performance` (lighthouse),
+`?panels=sql,cache` (toolbar). Results for a given URL across time: filter by URL
+on the pages endpoint.
+
+Each tool's router is self-contained in its own app (`lighthouse/api.py`,
+`headers/api.py`, etc.) and registered in `api/api.py` with a single line per tool.
+Adding a new collector adds one registration; nothing else changes.
 
 ---
 
@@ -142,19 +174,25 @@ Implemented as designed. The `enable_*` flags on `Site` and the `environment` fi
 *Supersedes the Scan/shared-Page structure from Stages 0–1.*
 
 The reasoning is in `docs/decisions.md`. Summary: tools are independent (toolbox, not
-swiss army knife), `Job` replaces the role `Site` was playing as configuration, each
-tool owns its own page list, and the URL string is the join key across tools.
+swiss army knife), per-tool `Job` models replace the role `Site` was playing as
+configuration, each tool owns its own page list, and the URL string is the join key
+across tools.
 
-- **Introduce `sites.Job`**: one collector, one URL source, one schedule. Move sitemap
-  config, platform, crontab, enable flags, and `environment` from `Site` to `Job`.
+- **Introduce per-tool Job models** with an abstract `BaseJob` for shared fields.
+  Each tool's `Job` has typed, tool-specific fields: `lighthouse.Job` has `platform`
+  and `categories`; `pageweight.Job` has `device`; `headers.Job` has no tool-specific
+  fields. Tool-specific config is derived from these fields at dispatch time.
 - **Simplify `sites.Site`**: name, slug, primary_url, description only.
 - **Remove `sites.Scan` and `sites.Page`**: coordination overhead that couples tools.
 - **Restore per-tool Page models**: each collector's `Run` owns its URL list. Each
   `Page` belongs to a `Run`, not to a shared parent.
-- **Restructure each collector's `Run`**: `FK(sites.Job)` instead of `FK(sites.Scan)`.
-- **Restructure tasks**: `take_site_scan` dispatches based on enabled Jobs rather than
-  enable flags; `signal_scan_complete` goes away (each Run completes independently).
+- **Restructure each collector's `Run`**: `FK(<tool>.Job)` instead of `FK(sites.Scan)`.
+- **Restructure tasks**: each tool's task is triggered independently; `signal_scan_complete`
+  goes away (each Run completes on its own).
+- **Make each tool app self-contained**: its own Job model, Run model, Page model,
+  tasks, admin, and API router. The `api` app assembles routers with one line per tool.
 - **Restructure the API**: tool-first URL layout as above. Remove `/scans/` endpoints.
+  Add per-tool `/jobs/` endpoints exposing typed configuration fields.
 - **Update `AGENTS.md`** and `agent-context` to reflect the new structure.
 - **Single focused commit** — this touches every app and every test.
 
@@ -167,12 +205,15 @@ tool owns its own page list, and the URL string is the join key across tools.
 Detailed design in `docs/ddt-integration-plan.md`. DDT slots in as a fourth independent
 collector following the same Job/Run/Page pattern as the others.
 
-- New `apps/debugtoolbar/` app.
-- `debugtoolbar.Run` → FK(sites.Job). `debugtoolbar.Page` → FK(Run), owns its URL list.
+- New `apps/debugtoolbar/` app, fully self-contained.
+- `debugtoolbar.Job(BaseJob)` adds `panels` MultiSelectField — which DDT panels to
+  collect. Profiling excluded from default (expensive, off by default in DDT itself).
+  Selected panels are translated to the companion endpoint's `?panels=` query parameter
+  at dispatch time.
+- `debugtoolbar.Run` → FK(debugtoolbar.Job). `debugtoolbar.Page` → FK(Run).
 - Requires companion package `django-cricket` installed in the target app.
-- Development/local environment only. Primary metric: SQL query count per page.
-- Job `environment` field distinguishes local DDT data from staging/production data on
-  a shared server.
+- Development/local environment only (`Job.environment = "local"`).
+- Primary metric: SQL query count per page.
 - `agent-context` must document all JSONField structures.
 
 ---
