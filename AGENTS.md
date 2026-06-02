@@ -33,7 +33,7 @@ sites.Site
         ├── lighthouse.Run  (status, config — no pages of its own)
         ├── headers.Run     (status)
         ├── pageweight.Run  (status)
-        └── debugtoolbar.Run (status)
+        └── debugtoolbar.Run (status)  ← Stage 2 (not yet built)
 ```
 
 Tool-specific results reference `sites.Page` directly:
@@ -47,7 +47,7 @@ debugtoolbar.PageData → FK(sites.Page)
 
 Each `Run` is dispatched in parallel via Celery when a `sites.Scan` is created.
 Each uses a Celery chord: a group of per-page tasks → a completion aggregator that
-sets `status=COMPLETE` and `page_count` on the `Run`, then signals the parent `Scan`.
+sets `status=COMPLETE` and `page_count` on the `Run`, then calls `sites.tasks.signal_scan_complete`. That task checks whether all enabled tool runs are complete before marking the parent `Scan` complete.
 
 The `headers` app is the simplest reference implementation for new collectors.
 
@@ -76,7 +76,7 @@ Celery with Redis as broker. Two queues:
 - `sites` — high priority, orchestration tasks
 - `pages` — default, per-page measurement tasks
 
-Celery Beat triggers `sites.tasks.take_snapshots` every hour.
+Celery Beat triggers `sites.tasks.take_scans` every hour.
 
 ### API layer
 
@@ -113,7 +113,7 @@ documents the structure for each tool. Reference shapes:
 ### Lighthouse audit IDs are cricket-owned stable slugs
 
 Cricket maps Lighthouse's internal audit IDs to stable slugs before storing them.
-Lighthouse has changed internal IDs across versions; cricket's slugs do not change.
+Lighthouse has changed internal IDs across versions (e.g. FID was replaced by INP in LH 12); cricket's slugs do not change. The mapping lives in `apps/lighthouse/audit_ids.py`.
 Discover audit IDs via `GET /api/audits/` rather than hardcoding them.
 
 ### Snapshot aggregation
@@ -172,8 +172,8 @@ Full details in `docs/development-plan.md`.
 
 | Stage | Work |
 |---|---|
-| 0 | Foundation: rename Snapshot→Scan, introduce sites.Page, remove pre-aggregation, stable Lighthouse IDs, tests, deployment |
-| 1 | Per-tool enable flags on Site; environment field on Scan |
+| ~~0~~ | ~~Foundation (done)~~ |
+| ~~1~~ | ~~Per-tool enable flags; environment tagging (done)~~ |
 | 2 | DDT integration (new `debugtoolbar` app) |
 | 3 | Multi-instance sync (push selected tools local → shared server) |
 | 4 | JS/CSS coverage (extends pageweight app) |
@@ -194,4 +194,4 @@ Full details in `docs/development-plan.md`.
 | `config/settings.py` | Environment gating and feature flags |
 | `docs/development-plan.md` | Full roadmap — what is yet to be built |
 | `docs/decisions.md` | Decision log — what changed and why |
-| `docs/ddt-integration-plan.md` | Detailed design for the DDT collector (terminology partially stale — see note at top) |
+| `docs/ddt-integration-plan.md` | Detailed design for the DDT collector  |

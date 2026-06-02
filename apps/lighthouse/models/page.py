@@ -94,12 +94,15 @@ class PageResult(TimeStampedModel, models.Model):
                     audit_meta[aid]["category_id"] = key
                     audit_meta[aid]["weight"] = ref.get("weight", 0)
 
+        from lighthouse.audit_ids import stable_audit_id
+
         definitions: dict[str, AuditDefinition] = {}
         for audit_id, meta in audit_meta.items():
             if "category_id" not in meta:
                 continue
+            cricket_id = stable_audit_id(audit_id)
             obj, _ = AuditDefinition.objects.update_or_create(
-                audit_id=audit_id,
+                audit_id=cricket_id,
                 defaults={
                     "category_id": meta["category_id"],
                     "title": meta["title"],
@@ -107,6 +110,7 @@ class PageResult(TimeStampedModel, models.Model):
                     "weight": meta.get("weight", 0),
                 },
             )
+            # Key by Lighthouse ID so _save_page_audits can look up by report key
             definitions[audit_id] = obj
 
         return definitions

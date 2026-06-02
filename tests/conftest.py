@@ -14,6 +14,17 @@ def use_dummy_cache_backend(settings):
 
 
 @pytest.fixture(autouse=True)
+def celery_eager():
+    """Run Celery tasks synchronously so tests can assert on their side-effects."""
+    from config.celery import app
+    app.conf.task_always_eager = True
+    app.conf.task_eager_propagates = True
+    yield
+    app.conf.task_always_eager = False
+    app.conf.task_eager_propagates = False
+
+
+@pytest.fixture(autouse=True)
 def media_storage(settings, tmpdir):
     """All files uploaded during testing are saved in the tmp directory.
     That way there is no need to clean up afterwards."""

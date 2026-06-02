@@ -2,6 +2,7 @@
 
 import pytest
 
+from api.models import APIKey
 from tests.factories import ScanFactory, SiteFactory
 
 pytestmark = pytest.mark.django_db
@@ -36,6 +37,15 @@ class TestListSites:
         assert "url" in site
         assert "enabled" in site
 
+    def test_scoped_key_sees_only_its_site(self, client):
+        site_a = SiteFactory()
+        SiteFactory()  # site_b — should not be visible
+        key = APIKey.objects.create(name="scoped", site=site_a)
+        client.defaults["HTTP_AUTHORIZATION"] = f"Bearer {key.key}"
+        data = client.get("/api/sites/").json()
+        assert len(data) == 1
+        assert data[0]["slug"] == site_a.slug
+
 
 class TestGetSite:
     def test_requires_auth(self, client):
@@ -60,3 +70,11 @@ class TestGetSite:
         site = SiteFactory(name="My Site")
         data = auth_client.get(f"/api/sites/{site.slug}/").json()
         assert data["name"] == "My Site"
+
+    def test_scoped_key_cannot_access_other_site(self, client):
+        site_a = SiteFactory()
+        site_b = SiteFactory()
+        key = APIKey.objects.create(name="scoped", site=site_a)
+        client.defaults["HTTP_AUTHORIZATION"] = f"Bearer {key.key}"
+        response = client.get(f"/api/sites/{site_b.slug}/")
+        assert response.status_code == 403

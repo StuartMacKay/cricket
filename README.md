@@ -44,7 +44,7 @@ dashboard at <http://localhost:5555>.
 
 ## Adding a site
 
-1. Log in to the admin and open **Lighthouse → Sites → Add site**.
+1. Log in to the admin and open **Sites → Sites → Add site**.
 2. Fill in **Name**, **Slug**, **URL**, and optionally a **Sitemap URL** or
    **Sitemap file** (leave both blank to audit the homepage only).
 3. Choose a **Platform** — `mobile` (default) or `desktop`.
@@ -54,6 +54,12 @@ dashboard at <http://localhost:5555>.
 
 To trigger an immediate audit, select the site and choose **Trigger scan**
 from the *Actions* dropdown, or `POST /api/sites/{slug}/scans/`.
+
+## Creating an API key
+
+Open **Api → Api keys → Add api key** in the admin. Give it a name, leave
+**Site scope** blank to grant access to all sites, and save. Use the generated
+key as a Bearer token: `Authorization: Bearer <key>`.
 
 ## API
 

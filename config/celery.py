@@ -38,20 +38,22 @@ app.conf.task_queue_max_priority = 10
 app.conf.task_default_priority = 5
 app.conf.task_default_queue = "pages"
 
-# Snapshots may be scheduled to run at a precise time (to the minute), but
-# since the code checks for snapshots that are overdue we can simply run
-# the task every hour, at the risk of swamping the workers
+# Scans may be scheduled to run at a precise time (to the minute), but
+# since the code checks for overdue sites we can simply run every hour
+# at the risk of swamping workers
 app.conf.beat_schedule = {
-    "take-snapshots": {
-        "task": "sites.tasks.take_snapshots",
+    "take-scans": {
+        "task": "sites.tasks.take_scans",
         "schedule": crontab(minute="0"),  # every hour, on the hour
     },
 }
 
 app.conf.task_routes = {
-    "sites.tasks.take_snapshots": {"queue": "sites"},
-    "sites.tasks.take_site_snapshot": {"queue": "sites"},
-    "lighthouse.tasks.take_lighthouse_snapshot": {"queue": "sites"},
+    "sites.tasks.take_scans": {"queue": "sites"},
+    "sites.tasks.take_site_scan": {"queue": "sites"},
+    "lighthouse.tasks.take_lighthouse_scan": {"queue": "sites"},
+    "headers.tasks.take_header_scan": {"queue": "sites"},
+    "pageweight.tasks.take_weight_scan": {"queue": "sites"},
 }
 
 
