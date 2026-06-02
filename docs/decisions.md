@@ -8,6 +8,36 @@ wonder why?" If yes, log it. If it's obvious from the code, skip it.
 
 ## 2026-06-02
 
+### Scheduling via a single master check task
+
+Rather than managing PeriodicTask database records for each Job or maintaining a
+static beat schedule that must be updated whenever a Job is added or changed, a single
+Celery Beat entry runs a check task every few minutes. That task loads all enabled Jobs
+and uses `croniter` against `Job.crontab` and `Job.last_run` to determine which are
+overdue. Overdue Jobs are dispatched. This is the same pattern used by
+`Site.objects.overdue()` in the current codebase.
+
+The approach is simple to reason about, requires no dynamic schedule management, and
+works well for the typical usage pattern where Jobs run at well-defined intervals (first
+of the month, Monday mornings). A Job with an empty crontab is manual-only.
+
+### Boolean fields for tool-specific selectors
+
+Per-tool Job models use separate boolean fields for selectors rather than a
+MultiSelectField (which requires a third-party package and stores as a comma-separated
+string) or a JSONField. One boolean per Lighthouse category, one per DDT panel. This
+renders as checkboxes in the admin, filters directly in the ORM
+(`job__cat_performance=True`), and requires no extra dependencies. The same pattern
+applies to any future tool that has a fixed, small set of selectable options.
+
+### url_list as a first-class URL source
+
+`url_list` is added as a built-in `url_source` option alongside `sitemap_url` and
+`sitemap_file`. A newline-separated list of URLs in `url_value` covers the common
+case of a small, hand-curated set of pages without needing a sitemap. A custom
+sitemap (sitemap_file) remains the right approach for editing a subset of an existing
+sitemap.
+
 ### Per-tool Job models with typed configuration fields
 
 A generic `sites.Job` with `config = JSONField` for collector-specific settings puts

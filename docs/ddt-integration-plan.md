@@ -99,8 +99,9 @@ Cricket sends the secret in a request header when fetching panel data. Installat
 `pip install django-cricket`.
 
 **Panel selection**: the endpoint accepts `?panels=SQLPanel,CachePanel` so cricket
-can request only the panels it needs. `debugtoolbar.Job.panels` controls which panels
-are requested — profiling excluded from the default.
+can request only the panels it needs. The enabled panel boolean fields on
+`debugtoolbar.Job` are collected into this list at dispatch time — profiling excluded
+from the default.
 
 ---
 
@@ -130,13 +131,17 @@ A DDT Job has its own crontab and URL source, independent of Lighthouse or pagew
 Jobs for the same site. Typical configuration:
 
 ```
-lighthouse.Job:    site=mysite, platform=mobile, categories=[performance, seo],
+lighthouse.Job:    site=mysite, platform=mobile,
+                   cat_performance=True, cat_seo=True,
+                   cat_accessibility=False, cat_best_practices=False,
                    crontab="0 0 1 * *"  (monthly)
 
 pageweight.Job:    site=mysite, device=mobile,
                    crontab="0 * * * *"  (hourly)
 
-debugtoolbar.Job:  site=mysite, panels=[sql, cache, templates],
+debugtoolbar.Job:  site=mysite,
+                   panel_sql=True, panel_cache=True, panel_templates=True,
+                   panel_signals=False, panel_request=False, panel_profiling=False,
                    environment=local, url_source=url_list,
                    url_value="https://localhost:8000/\nhttps://localhost:8000/about/",
                    crontab="0 9 * * 1-5"  (weekday mornings)
@@ -198,17 +203,23 @@ Create `apps/debugtoolbar/` following the `headers` app as the reference pattern
 **`apps/debugtoolbar/models/job.py`**
 ```python
 class Job(BaseJob):
-    panels = MultiSelectField(
-        choices=["sql", "cache", "templates", "signals", "request", "profiling"],
-        default=["sql", "cache", "templates", "signals", "request"],
-        # profiling excluded: expensive, off by default in DDT itself
-    )
-    cricket_secret = CharField(max_length=100, blank=True,
+    # One boolean per panel — renders as checkboxes in the admin,
+    # filters cleanly in the ORM, no MultiSelectField package needed.
+    panel_sql       = BooleanField(default=True)
+    panel_cache     = BooleanField(default=True)
+    panel_templates = BooleanField(default=True)
+    panel_signals   = BooleanField(default=True)
+    panel_request   = BooleanField(default=True)
+    panel_profiling = BooleanField(default=False)  # expensive, off by default in DDT
+
+    cricket_secret  = CharField(max_length=100, blank=True,
         help_text="Shared secret for /__cricket__/toolbar/ endpoint authentication")
 ```
 
-Panel selection and the companion endpoint secret are explicit fields — no JSON blob.
-The `cricket_secret` field replaces `Site.extra_config["cricket_secret"]`.
+Each panel is an explicit boolean — no JSON blob, no third-party MultiSelectField
+package. The enabled panels are collected into a list at dispatch time and passed as
+`?panels=SQLPanel,CachePanel,...` to the companion endpoint. The `cricket_secret`
+field replaces `Site.extra_config["cricket_secret"]`.
 
 **`apps/debugtoolbar/models/run.py`**
 ```python
@@ -420,7 +431,7 @@ django_cricket/
 |---|---|
 | Companion package vs. shared Redis | Companion package (`django-cricket`) |
 | Companion secret storage | `debugtoolbar.Job.cricket_secret` typed field — not `Site.extra_config` |
-| Panels to collect | `debugtoolbar.Job.panels` MultiSelectField; profiling off by default |
+| Panels to collect | One boolean field per panel on `debugtoolbar.Job`; profiling off by default |
 | Cadence | Separate Job with its own crontab — not coupled to other collectors |
 | Enable/disable | Job existence is the signal — no enable flag on Site |
 | Environment provenance | `Job.environment` field; preserved on push |
