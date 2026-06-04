@@ -1,6 +1,6 @@
 from django.urls import reverse_lazy
-from django.views.generic import RedirectView
+from django.views.generic import TemplateView
 
 
-class IndexView(RedirectView):
-    url = reverse_lazy("admin:index")
+class IndexView(TemplateView):
+    template_name = "index.html"
