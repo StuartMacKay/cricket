@@ -1,5 +1,0 @@
-# robots.txt for {{ request.scheme }}://{{ request.get_host }}/
-
-User-Agent: *
-
-Sitemap: {{ request.scheme }}://{{ request.get_host }}/sitemap.xml

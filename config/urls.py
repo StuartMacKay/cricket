@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 
-from core.views import IndexView, RobotsView
+from core.views import IndexView
 from api.api import api
 
 urlpatterns = [
@@ -16,7 +16,6 @@ urlpatterns += [
 ]
 
 urlpatterns += [
-    path("robots.txt", RobotsView.as_view()),
     path("watchman/", include("watchman.urls")),
     path("api/", api.urls),
 ]
