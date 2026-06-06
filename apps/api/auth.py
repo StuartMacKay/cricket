@@ -7,8 +7,6 @@ from .models import APIKey
 
 
 class BearerAuth(HttpBearer):
-    """Validate Authorization: Bearer <key> header against APIKey rows."""
-
     def authenticate(self, request, token: str) -> Optional[APIKey]:
         try:
             key = APIKey.objects.select_related("site").get(key=token)

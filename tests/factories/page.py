@@ -1,18 +1,10 @@
 import factory
+from audits.models import Page
 
-from lighthouse.models import Page as LighthousePage
 
-
-class LighthousePageFactory(factory.django.DjangoModelFactory):
-    """Creates a lighthouse.Page (one URL within a Lighthouse Run)."""
-
+class PageFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = LighthousePage
+        model = Page
 
-    run     = factory.SubFactory("tests.factories.LighthouseRunFactory")
-    url     = factory.Faker("url")
-    audited = False
-
-
-# Keep a generic alias for backwards compatibility in tests
-PageFactory = LighthousePageFactory
+    site = factory.SubFactory("tests.factories.site.SiteFactory")
+    url = factory.Sequence(lambda n: f"https://example-{n}.com/page/")

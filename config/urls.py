@@ -1,9 +1,8 @@
+from api.api import api
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
-
-from core.views import IndexView
-from api.api import api
+from pages.views import IndexView
 
 urlpatterns = [
     path("", IndexView.as_view(), name="index"),

@@ -1,12 +1,12 @@
 # Agent Skills — Cricket API
 
-This document describes how to accomplish the primary tasks using the
-Cricket API.  Read `GET /api/agent-context/` first to confirm
-endpoint URLs and filter parameters for the version you are talking to.
+This document describes how to accomplish primary tasks using the Cricket API.
+Endpoint URLs, filter parameters, and response shapes are all described here.
+Interactive API documentation is available at `/api/docs`.
 
 ---
 
-## 1. Finding a site and reading its current scores
+## 1. Orienting: sites, runs, and pages
 
 ```
 # List all sites you have access to
@@ -15,197 +15,219 @@ GET /api/sites/
 # Get one site by slug
 GET /api/sites/my-site/
 
-# Read the most recent complete scan (O(1) — no scanning)
-GET /api/sites/my-site/scans/latest/
+# List runs for a site (newest first)
+GET /api/sites/my-site/runs/
+
+# Find the most recent complete run
+GET /api/sites/my-site/runs/?status=complete&limit=1
 ```
 
-The `latest/` response includes `categories` with aggregated scores and
-poor/needs/good page counts for each category.  If no complete scan
-exists yet the response is 404 with code `no_complete_scan`.
+A **Run** is one execution of a **Job**. A Job selects which audits to perform
+and which pages to audit. Each run groups all per-page **Reports** for that
+execution. Runs have status `running`, `complete`, or `failed`.
 
 ---
 
-## 2. Locating failing pages for a specific category or audit
+## 2. Reading current metrics for a site's pages
 
 ```
-# All pages with a "poor" accessibility rating
-GET /api/sites/my-site/scans/42/pages/
-    ?category=accessibility&rating=poor
+# List all pages Cricket has audited for a site
+GET /api/sites/my-site/pages/
 
-# All pages that fail a specific audit
-GET /api/sites/my-site/scans/42/pages/
-    ?audit=largest-contentful-paint&rating=poor
+# Get the latest metrics for one page (from the most recent complete run)
+GET /api/sites/my-site/pages/1203/metrics/
 
-# Combine: poor LCP pages, 10 at a time, ordered by URL
-GET /api/sites/my-site/scans/42/pages/
-    ?audit=largest-contentful-paint&rating=poor&limit=10
+# Filter to metrics from one audit only
+GET /api/sites/my-site/pages/1203/metrics/?audit=lighthouse
 
-# Next page using cursor from previous response
-GET /api/sites/my-site/scans/42/pages/
-    ?audit=largest-contentful-paint&rating=poor&limit=10&cursor=<next_cursor>
+# Get metrics from a specific run
+GET /api/sites/my-site/pages/1203/metrics/?run_id=42
 ```
 
-The `hint` field in each list response suggests narrowing parameters if
-the result set is large.
+The `/metrics/` response returns one `Metric` per `Definition` (measurable quantity).
+Each Metric has `score` (0–100), `rating` (`poor`/`needs-improvement`/`good`),
+`value`, `units`, and `measured` (timestamp).
+
+Use `GET /api/definitions/` to discover all available metric definitions and their slugs.
 
 ---
 
-## 3. Reading audit detail to understand what to fix
+## 3. Tracking a metric over time
 
 ```
-GET /api/sites/my-site/scans/42/pages/1203/
+# All recorded values for a specific metric, newest first
+GET /api/sites/my-site/pages/1203/metrics/history/?definition=largest-contentful-paint
+
+# All Lighthouse metrics across all runs for this page
+GET /api/sites/my-site/pages/1203/metrics/history/?audit=lighthouse
+
+# Limit the response
+GET /api/sites/my-site/pages/1203/metrics/history/?definition=largest-contentful-paint&limit=10
 ```
 
-The response joins `PageAudit` with `AuditDefinition` so you receive the
-human-readable `title` and `description` alongside `score`, `rating`,
-`value`, and `details` (the per-element failure data) in a single call.
-
-The `details` field is Lighthouse's raw audit detail section.  For image
-audits it lists individual images with their `url`, `totalBytes`, and
-`wastedMs`.  For contrast audits it lists failing elements with their
-CSS selectors.  This is what you need to know *what to fix*, not just
-*that something is failing*.
+The `measured` timestamp on each Metric mirrors the Run's `created` timestamp, so
+records can be plotted as a time series without joining through the Run.
 
 ---
 
-## 4. Triggering a re-audit and waiting for results
-
-### Option A — Poll
+## 4. Reading raw report data
 
 ```
-# Trigger a new scan
-POST /api/sites/my-site/scans/
-{}
+# List all reports in a run (one per page per audit)
+GET /api/sites/my-site/runs/42/reports/
 
-# Response: 202 Accepted
-# {"id": 43, "status": "pending", "poll_url": "/api/jobs/43/"}
+# Filter to one audit type
+GET /api/sites/my-site/runs/42/reports/?audit=lighthouse
 
-# Poll until done (honour retry_after)
-GET /api/jobs/43/
-# → {"status": "running", "retry_after": 30, "result_url": null}
-# wait 30 seconds
-GET /api/jobs/43/
-# → {"status": "complete", "result_url": "/api/sites/my-site/scans/43/"}
-
-# Read the results
-GET /api/sites/my-site/scans/43/
+# Get the full report including raw data
+GET /api/sites/my-site/runs/42/reports/5017/
 ```
 
-### Option B — Webhook (preferred for long-running audits)
+The detail response includes `data` (structured JSON output from the audit task)
+and, for Lighthouse, `json_report_url` and `html_report_url` (file download links).
 
-```
-POST /api/sites/my-site/scans/
-{"webhook_url": "https://your-service.example.com/cricket-hook"}
+Report data structure by audit type:
 
-# Your service receives a POST when the scan completes:
-# {
-#   "event": "scan.complete",
-#   "scan_id": 43,
-#   "site_slug": "my-site",
-#   "result_url": "/api/sites/my-site/scans/43/",
-#   "status": "complete"
-# }
-```
-
-### If a scan is already running
-
-```
-# 409 Conflict
-# {"error": {"code": "scan_in_progress", "job_id": 43, "poll_url": "/api/jobs/43/"}}
-
-# Force a new one anyway
-POST /api/sites/my-site/scans/
-{"force": true}
-```
+| Audit | `data` field |
+|---|---|
+| `lighthouse` | `{}` — data is in the JSON file at `json_report_url` |
+| `page-headers` | `{status_code, headers: {}, redirect_count, final_url}` |
+| `page-weight` | `{total_transfer_size, by_type: {document, script, image, …}}` |
 
 ---
 
-## 5. Comparing scores before and after a fix
+## 5. Uploading findings from secondary processing
+
+Agents can attach open-ended actionable items to a Report after secondary analysis:
 
 ```
-# Before fix: scan 42
-GET /api/sites/my-site/scans/42/
-# → performance: 61 (poor)
+POST /api/sites/my-site/runs/42/reports/5017/findings/
+Authorization: Bearer <key>
+Content-Type: application/json
 
-# After fix: trigger and wait for scan 43
-POST /api/sites/my-site/scans/
-# → wait for completion
-
-GET /api/sites/my-site/scans/43/
-# → performance: 78 (needs-improvement) — improved
-
-# Compare a specific page
-GET /api/sites/my-site/scans/42/pages/1203/
-GET /api/sites/my-site/scans/43/pages/<new-page-id>/
-# → largest-contentful-paint: 4200ms → 1800ms
-```
-
----
-
-## 6. Delegating page fixes to a pool of agents
-
-An orchestrator agent can partition failing pages across worker agents:
-
-```
-# Get the worst 20 LCP pages (two workers of 10 each)
-GET /api/sites/my-site/scans/42/pages/
-    ?audit=largest-contentful-paint&rating=poor&limit=10
-# → first 10 pages + next_cursor
-
-GET /api/sites/my-site/scans/42/pages/
-    ?audit=largest-contentful-paint&rating=poor&limit=10&cursor=<next_cursor>
-# → next 10 pages
-
-# Each worker agent receives:
-# - The page URL (to edit the source)
-# - GET /api/.../pages/{id}/ for the full audit detail (what to fix)
-# - The raw LHR JSON is at PageResult.report (available for 90 days) for
-#   correlated analysis when multiple audits share a root cause
-```
-
----
-
-## 7. Identifying systemic issues across the portfolio
-
-```
-# Which audits fail most often across all sites?
-GET /api/audits/?has_failures=true&sort=fail_rate
-# → [
-#     {"audit_id": "uses-optimized-images", "fail_rate": 0.72, "failing_pages": 634},
-#     {"audit_id": "color-contrast",        "fail_rate": 0.61, "failing_pages": 538}
-#   ]
-```
-
-Failure counts are computed on demand from `PageAudit` across all scans.
-
----
-
-## 8. Filtering by environment
-
-```
-# Scans collected from staging only
-GET /api/sites/my-site/scans/?environment=staging
-
-# Latest complete staging scan
-GET /api/sites/my-site/scans/latest/?environment=staging
-```
-
-The `environment` field is set at scan creation from `Site.extra_config["environment"]`.
-
----
-
-## 9. Reporting API friction via the feedback endpoint
-
-If an endpoint returns an unexpected result or you hit a gap in the API,
-report it so maintainers can improve the service:
-
-```
-POST /api/feedback/
 {
-  "endpoint": "GET /api/sites/my-site/scans/42/pages/",
-  "message": "The ?audit= filter doesn't work when combined with ?category=. Expected intersection; got empty result."
+  "type": "dead-link",
+  "title": "Navigation link /old-page returns 404",
+  "description": "Found in the main navigation menu.",
+  "url": "https://my-site.example.com/old-page",
+  "severity": "error",
+  "source": "link-checker-agent"
 }
 ```
 
-Feedback is stored against your API key and is visible to admins at
-`GET /api/feedback/`.
+The `type` field is a free slug — no pre-defined list. The page is derived from the
+Report so you don't need to supply it. Use `source` to record which tool or agent
+created the finding.
+
+```
+# Read findings for a page
+GET /api/sites/my-site/pages/1203/findings/
+
+# Filter by type, severity, or run
+GET /api/sites/my-site/pages/1203/findings/?type=dead-link
+GET /api/sites/my-site/pages/1203/findings/?severity=error
+GET /api/sites/my-site/pages/1203/findings/?run_id=42
+```
+
+---
+
+## 6. Comparing metrics before and after a fix
+
+```
+# Step 1: note the run that captured the baseline
+GET /api/sites/my-site/runs/?status=complete&limit=1
+# → run id=42, created=2026-06-01
+
+# Step 2: wait for a new run to complete after deploying the fix
+GET /api/sites/my-site/runs/?status=complete&limit=1
+# → run id=45, created=2026-06-08
+
+# Step 3: compare the same metric across both runs
+GET /api/sites/my-site/pages/1203/metrics/?run_id=42
+GET /api/sites/my-site/pages/1203/metrics/?run_id=45
+
+# Or read the full history and slice it yourself
+GET /api/sites/my-site/pages/1203/metrics/history/?definition=largest-contentful-paint
+```
+
+---
+
+## 7. Identifying which pages have the worst metrics
+
+```
+# All recorded values for one definition across all pages — newest run per page
+GET /api/sites/my-site/metrics/?definition=largest-contentful-paint
+
+# Filter to pages rated "poor"
+GET /api/sites/my-site/metrics/?definition=largest-contentful-paint&rating=poor
+```
+
+Results are sorted worst-first. Use cursor pagination to iterate over large sites:
+
+```
+GET /api/sites/my-site/metrics/?definition=largest-contentful-paint&rating=poor&limit=10
+# → items + next_cursor
+
+GET /api/sites/my-site/metrics/?definition=largest-contentful-paint&rating=poor&limit=10&cursor=<next_cursor>
+```
+
+---
+
+## 8. Discovering available metric definitions
+
+```
+# List all registered Definitions
+GET /api/definitions/
+
+# Get one Definition (slug, name, description, audit, weight)
+GET /api/definitions/largest-contentful-paint/
+```
+
+Definitions are created by the audit report processors and are the canonical list of
+measurable quantities. Discover them via the API rather than hardcoding slugs — audit
+tools change their metric names across versions and Cricket maps them to stable slugs.
+
+---
+
+## 9. Delegating page analysis across multiple agents
+
+An orchestrator can partition pages or findings across worker agents using cursor
+pagination:
+
+```
+# Get failing pages in batches of 10
+GET /api/sites/my-site/metrics/?definition=largest-contentful-paint&rating=poor&limit=10
+# → first batch + next_cursor
+
+GET /api/sites/my-site/metrics/?definition=largest-contentful-paint&rating=poor&limit=10&cursor=<next_cursor>
+# → second batch
+
+# Each worker agent receives the page_url and can:
+# - Read the full metric list for that page
+GET /api/sites/my-site/pages/{id}/metrics/
+# - Read raw report data (Lighthouse JSON, headers, etc.)
+GET /api/sites/my-site/runs/{run_id}/reports/{report_id}/
+# - Upload findings once analysis is done
+POST /api/sites/my-site/runs/{run_id}/reports/{report_id}/findings/
+```
+
+---
+
+## 10. Pagination
+
+All list endpoints that may return large result sets use cursor pagination:
+
+```json
+{
+  "items": [...],
+  "count": 10,
+  "limit": 20,
+  "truncated": false,
+  "next_cursor": "eyJpZCI6IDEyMH0",
+  "hint": "..."
+}
+```
+
+Pass `?cursor=<next_cursor>` to fetch the next page. When `truncated` is `false`
+and `next_cursor` is `null`, you have reached the end. The `hint` field suggests
+a narrower query when the result set is large.

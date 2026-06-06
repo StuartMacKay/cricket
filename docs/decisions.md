@@ -88,6 +88,123 @@ control.
 
 ---
 
+## 2026-06-06
+
+### Per-tool apps replaced by a single unified `audits` app
+
+The previous architecture had four separate Django apps for data storage:
+`sites`, `lighthouse`, `headers`, and `pageweight`. Each tool app had its
+own `Job`, `Run`, and `Page` models that duplicated common structure (site FK,
+status, crontab scheduling, URL discovery). Tool-specific results were stored
+in tool-specific models (`lighthouse.PageAudit`, `headers.Page`,
+`pageweight.Page`) with no shared abstraction for the concept of a metric or
+a measurement.
+
+All four apps have been deleted and replaced by a single `audits` app with
+the following models:
+
+- **`Site`** — identity only (name, slug, url, environment). Moved
+  `environment` from `Scan` to `Site`; separate Site records replace the old
+  per-tool enable flags as the mechanism for controlling what runs and where.
+
+- **`Audit`** — replaces the implicit concept of a tool. Each `Audit` record
+  maps a slug to the Celery task that performs the work. Registered via data
+  migrations. Agents can discover available audits via `GET /api/definitions/`.
+
+- **`Job`** — replaces `sites.BaseJob` and all per-tool job subclasses
+  (`lighthouse.Job`, `headers.Job`, `pageweight.Job`). One Job record covers
+  any combination of Audits via an M2M relationship. Per-tool typed config
+  fields (Lighthouse `platform`, `cat_performance`, etc.) are not replicated;
+  the current audits are configured at the Audit/task level instead.
+
+- **`Run`** — replaces the per-tool run models. Tracks `total_tasks` and
+  `completed_tasks` counters; `task_complete()` marks the Run complete when
+  all audit-page tasks finish, using `SELECT FOR UPDATE` to avoid races.
+  No separate Scan coordinator model is needed.
+
+- **`Page`** — replaces both `sites.Page` (which was per-scan) and the
+  per-tool page models (`lighthouse.Page`, `headers.Page`, `pageweight.Page`).
+  A `Page` is now a stable identity record for a URL within a Site, reused
+  across all Runs. `url` is globally unique (not unique-per-scan), so Reports
+  from different Runs can be compared by URL without joining through a scan.
+
+- **`Report`** — the raw output of one Audit against one Page in one Run.
+  Replaces `lighthouse.PageAudit` (which also embedded metric extraction),
+  `headers.Page` (which stored results directly on the page model), and
+  `pageweight.Page`. Stores `data` as a JSONField plus optional file fields
+  for Lighthouse's JSON/HTML reports.
+
+- **`Definition`** — replaces `lighthouse.AuditDefinition`. Generalised to
+  cover any audit, not just Lighthouse. Renamed from `Metric` (the original
+  name for the description of a measurable quantity) to `Definition` to
+  avoid confusion with recorded measurements.
+
+- **`Metric`** — replaces `lighthouse.PageAudit` (scalar fields) and the old
+  `Value` model (which was itself renamed from `Metric`). Stores one recorded
+  measurement per (Report, Definition) pair. Denormalises `page` and `measured`
+  for query performance. Supports `score`, `rating`, `value`, `units`.
+
+- **`Finding`** — new model with no predecessor. Open-ended actionable items
+  (dead links, oversized images, etc.) attached to a Report and Page. The
+  `type` field is a free slug rather than a FK to a pre-defined table, so new
+  finding categories require no migrations. Findings can be created by audit
+  tasks or uploaded via the API by external agents.
+
+**What drove the consolidation:**
+
+The per-tool app structure was designed for a world where each collector was
+entirely independent. In practice, the common structure (Job scheduling, Run
+tracking, Page URL management, metric storage) was being duplicated across
+every tool. Adding a new collector meant copying the same scaffolding. The
+unified model makes the collector pattern explicit at the model level: each
+Audit is a named capability backed by a Celery task, and all results flow
+through the same Report → Metric / Finding pipeline.
+
+**What stayed the same:**
+
+The report processors in `apps/audits/reports/` contain the tool-specific
+logic that was previously embedded in per-tool Page models (`page.audit()`,
+`page.fetch()`, `page.measure()`). The Celery task structure (one
+`audit_page` task per page per audit) is unchanged.
+
+---
+
+### Model naming: Definition and Metric
+
+During the unification, the names `Metric` and `Definition` were swapped from
+their original assignments:
+
+- Old `Metric` (description of a measurable quantity) → **`Definition`**
+- Old `Value` (a recorded measurement) → **`Metric`**
+
+`Definition` better describes something that defines what is measured.
+`Metric` better describes the actual recorded data point. The old names were
+inherited from the Lighthouse-only era and were confusing in a generalised
+context.
+
+---
+
+### API redesigned around unified resources
+
+The old API had per-tool routers under paths like `/api/sites/{slug}/lighthouse/`
+with an auto-discovery mechanism (`AGENT_CONTEXT` dicts in each tool's `api.py`
+and an introspection endpoint that assembled them). The new API has a single
+flat set of routers covering all tools uniformly:
+
+```
+/api/sites/{slug}/jobs/
+/api/sites/{slug}/runs/{id}/reports/{id}/
+/api/sites/{slug}/pages/{id}/metrics/history/
+/api/sites/{slug}/pages/{id}/findings/
+/api/definitions/
+```
+
+Agents filter by `?audit=` to narrow results to a specific tool rather than
+routing to a tool-specific endpoint. This removes the need for the
+introspection auto-discovery mechanism entirely.
+
+---
+
 ## 2026-05-30
 
 ### Structured JSON as the primary output format

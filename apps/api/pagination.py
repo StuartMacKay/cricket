@@ -1,10 +1,6 @@
 import base64
 import json
-from typing import Generic, Optional, TypeVar
-
-from ninja import Schema
-
-T = TypeVar("T")
+from typing import Optional
 
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
@@ -41,10 +37,10 @@ def paginate(queryset, limit: int, cursor: Optional[str] = None, hint: str = "")
         next_cursor = encode_cursor(items[-1].pk)
 
     return {
-        "items": items,
-        "count": len(items),
-        "limit": limit,
-        "truncated": truncated,
+        "items":       items,
+        "count":       len(items),
+        "limit":       limit,
+        "truncated":   truncated,
         "next_cursor": next_cursor,
-        "hint": hint,
+        "hint":        hint,
     }

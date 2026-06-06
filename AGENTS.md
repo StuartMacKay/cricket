@@ -9,118 +9,179 @@ decisions without rediscovering them from the code.
 ## What Cricket Is
 
 Cricket is a web quality auditing server. It crawls one or more sites on a
-cron schedule, runs a set of collectors against each page, stores the results
+cron schedule, runs a set of audits against each page, stores the results
 in a database, and exposes everything through an agent-native REST API.
 
 The intended consumers of the API are AI agents: agents can query audit
-results, compare snapshots over time, identify regressions, and generate
+results, compare metrics over time, identify regressions, and generate
 pull requests or reports. The API is designed with this in mind — Bearer
-auth, cursor pagination, 202 async with poll URLs, and a machine-readable
-contract at `GET /api/agent-context/`.
+auth, cursor pagination, and a machine-readable schema at `/api/docs`.
 
 ---
 
 ## Architecture
 
-### The collector pattern
+### The unified audits app
 
-Every audit type is a separate Django app. Each follows an identical structure:
-
-```
-sites.Site
-  └── sites.Scan            (one per audit run — status, environment, timestamps)
-        ├── sites.Page × N  (shared URL list — one record per URL per scan)
-        ├── lighthouse.Run  (status, config — no pages of its own)
-        ├── headers.Run     (status)
-        ├── pageweight.Run  (status)
-        └── debugtoolbar.Run (status)  ← Stage 2 (not yet built)
-```
-
-Tool-specific results reference `sites.Page` directly:
+All audit data lives in the `audits` Django app. There are no per-tool
+apps. The models are:
 
 ```
-lighthouse.PageAudit  → FK(sites.Page)
-headers.PageData      → FK(sites.Page)
-pageweight.PageData   → FK(sites.Page)
-debugtoolbar.PageData → FK(sites.Page)
+audits.Site           — identity only: name, slug, url, environment
+  └── audits.Job      — configuration: which audits, which pages, schedule
+        └── audits.Run          — one execution of a Job
+              └── audits.Report — one audit result per (Run × Audit × Page)
+                    ├── audits.Metric × N  — extracted scalar measurements
+                    └── audits.Finding × N — actionable items
+
+audits.Page           — a URL, shared across all Runs for a Site
+audits.Audit          — an audit type, backed by a Celery task
+audits.Definition     — describes a measurable quantity produced by an Audit
 ```
 
-Each `Run` is dispatched in parallel via Celery when a `sites.Scan` is created.
-Each uses a Celery chord: a group of per-page tasks → a completion aggregator that
-sets `status=COMPLETE` and `page_count` on the `Run`, then calls `sites.tasks.signal_scan_complete`. That task checks whether all enabled tool runs are complete before marking the parent `Scan` complete.
+### Model responsibilities
 
-The `headers` app is the simplest reference implementation for new collectors.
+**`Site`** — stable identity. Groups Jobs, Pages, and all their audit history
+under a slug. Use separate Site records for different environments (local,
+staging, production) of the same project so results are not mixed.
 
-The reasoning behind these structural choices is in `docs/decisions.md`.
+**`Audit`** — registered via data migrations. Maps a slug to the Celery task
+that performs the audit and writes a Report. Audits available: `lighthouse`,
+`page-headers`, `page-weight`. Each has a corresponding report processor in
+`apps/audits/reports/`.
 
-### Per-tool enable flags
+**`Job`** — the configuration unit. Selects a Site, a set of Audits (M2M),
+the pages to audit (sitemaps or explicit URL list), device emulation, and a
+cron schedule. Each execution creates one Run.
 
-`sites.Site` has a boolean flag for each collector: `enable_lighthouse`,
-`enable_headers`, `enable_pageweight`, `enable_toolbar`. `take_site_scan` checks
-each before dispatching. Default `True` for all except `enable_toolbar`.
+- `Job.sitemaps` — newline-separated sitemap URLs to fetch and parse
+- `Job.urls` — newline-separated explicit page URLs
+- `Job.schedule` — crontab string; empty means manual-only
+- `Job.get_pages()` — yields Page objects, creating them if needed
+- `Job.clean()` validates that all URLs/sitemaps belong to the Site's domain
 
-Different collection cadences use separate `Site` objects with different crontabs
-and different flags — not per-tool schedules on one Site.
+**`Run`** — one execution of a Job. Tracks overall status and task counters.
+`Run.task_complete()` increments `completed_tasks` and calls `Run.complete()`
+when all tasks are done (uses `SELECT FOR UPDATE` to avoid races).
 
-### Environment tagging
+**`Page`** — a URL belonging to a Site. Created by `Job.get_pages()` on first
+encounter; reused across all subsequent Runs. `url` is globally unique.
 
-`sites.Scan` has an `environment` field (`local`, `staging`, `production`).
-Always filter scan queries by environment when comparing metrics. Page weight and
-Lighthouse scores from a local machine are not comparable to those from staging.
-DDT SQL query counts are environment-independent and can be collected locally then
-pushed to a shared server.
+**`Report`** — the raw output of one Audit against one Page in one Run. Holds:
+- `data` JSONField — structured output from the audit task
+- `json_report` / `html_report` — file fields (Lighthouse only)
+- `error` — exception detail if the audit failed
+
+**`Definition`** — describes a measurable quantity (e.g. "Largest Contentful
+Paint"). Has a slug, human name, description, weight, and FK to its Audit.
+Registered via data migrations — only metrics listed in `Definition` are
+extracted from reports. The five weighted Lighthouse Performance definitions
+are seeded in `0001_initial.py`.
+
+**`Metric`** — a recorded measurement extracted from a Report. FK to Page
+(denormalised for query performance), Report, and Definition. Stores `score`,
+`rating` (poor / needs-improvement / good), `value`, `units`, `measured`
+(mirrors Run.created). The primary data for trend analysis.
+
+**`Finding`** — an open-ended actionable item. FK to Page and Report. `type`
+is a free slug (e.g. `dead-link`, `large-image`) — no pre-defined list.
+Findings can be created by audit tasks or uploaded via the API by agents.
+
+### Task architecture
+
+```
+audits.tasks.dispatch_run(job_id)     — creates Run, calls get_pages(), counts
+                                         tasks, dispatches one audit_page task
+                                         per (Audit × Page), saves total_tasks
+audits.tasks.audit_page(run_id, audit_slug, page_id)
+                                      — runs the audit, creates Report, calls
+                                         report processor, calls run.task_complete()
+audits.tasks.check_scheduled_jobs()   — Celery Beat task (every few minutes);
+                                         calls Job.is_overdue() and dispatches
+                                         overdue Jobs
+```
+
+Report processors live in `apps/audits/reports/` and are named after their
+audit slug: `lighthouse.py`, `page_headers.py`, `page_weights.py`.
+
+### Scheduling
+
+A single Celery Beat entry runs `check_scheduled_jobs` every few minutes.
+That task loads all enabled Jobs and uses `croniter` against `Job.schedule`
+and `Job.executed` to find which are overdue. Overdue Jobs are dispatched.
+Jobs with an empty `schedule` are manual-only.
 
 ### Task queue
 
-Celery with Redis as broker. Two queues:
-- `sites` — high priority, orchestration tasks
-- `pages` — default, per-page measurement tasks
+Celery with Redis as broker. Single default queue.
 
-Celery Beat triggers `sites.tasks.take_scans` every hour.
+---
 
-### API layer
+## API
 
-Django Ninja (not DRF). Routers live in `apps/api/routers/`. Schemas in
-`apps/api/schemas.py`. Authentication is Bearer token via `apps/api/auth.py`.
+Django Ninja (not DRF). Routers in `apps/api/routers/`. Schemas in
+`apps/api/schemas.py`. Auth: Bearer token via `apps/api/auth.py`.
 
 ```
-/api/sites/{slug}/scans/                        list / trigger
-/api/sites/{slug}/scans/{id}/                   scan detail
-/api/sites/{slug}/scans/{id}/pages/             shared page list (all tools)
-/api/sites/{slug}/scans/{id}/pages/{page_id}/   page detail
-/api/sites/{slug}/scans/{id}/{tool}/pages/      tool-specific page results
-/api/sites/{slug}/scans/{id}/{tool}/pages/{id}/ tool-specific page detail
+GET  /api/sites/                                      list sites
+GET  /api/sites/{slug}/                               site detail
+
+GET  /api/sites/{slug}/jobs/                          list jobs
+GET  /api/sites/{slug}/jobs/{id}/                     job detail
+
+GET  /api/sites/{slug}/runs/                          list runs
+GET  /api/sites/{slug}/runs/{id}/                     run detail
+GET  /api/sites/{slug}/runs/{id}/reports/             list reports in a run
+GET  /api/sites/{slug}/runs/{id}/reports/{id}/        report detail (data + file URLs)
+POST /api/sites/{slug}/runs/{id}/reports/{id}/findings/  create a finding
+
+GET  /api/sites/{slug}/pages/                         list pages
+GET  /api/sites/{slug}/pages/{id}/                    page detail
+GET  /api/sites/{slug}/pages/{id}/metrics/            latest metrics for a page
+GET  /api/sites/{slug}/pages/{id}/metrics/history/    metric time series
+GET  /api/sites/{slug}/pages/{id}/findings/           findings for a page
+
+GET  /api/sites/{slug}/metrics/                       cross-page metrics for a definition
+GET  /api/definitions/                                list metric definitions
+GET  /api/definitions/{slug}/                         definition detail
 ```
+
+All list endpoints use cursor pagination: `?limit=` and `?cursor=`.
+Filters documented in the individual router files.
 
 ---
 
 ## Working with result data
 
-### JSONField structures vary by tool
+### Report data varies by audit type
 
-Each tool's detail fields have a specific structure. Do not attempt to process
-a JSONField without knowing which tool produced it. The `agent-context` endpoint
-documents the structure for each tool. Reference shapes:
+Each audit stores different data in `Report.data` and `Report.json_report`:
 
-| Tool / field | Structure |
-|---|---|
-| Lighthouse `PageAudit.details` | `[{url, totalBytes, wastedMs}]` (failing items) |
-| DDT `Page.sql_queries` | `[{sql, time_ms, traceback}]` |
-| HTML validation errors | `[{message, type, line, column}]` |
-| Broken link list | `[{url, status_code, source_url}]` |
-| JS coverage functions | `[{name, executed, script_url}]` |
+| Audit | Report.data | File fields |
+|---|---|---|
+| `lighthouse` | `{}` (empty — data is in the JSON file) | `json_report`, `html_report` |
+| `page-headers` | `{status_code, headers: {}, redirect_count, final_url}` | none |
+| `page-weight` | `{total_transfer_size, total_resource_size, resource_count, by_type: {}}` | none |
 
-### Lighthouse audit IDs are cricket-owned stable slugs
+Do not process `Report.data` without knowing which audit produced it.
 
-Cricket maps Lighthouse's internal audit IDs to stable slugs before storing them.
-Lighthouse has changed internal IDs across versions (e.g. FID was replaced by INP in LH 12); cricket's slugs do not change. The mapping lives in `apps/lighthouse/audit_ids.py`.
-Discover audit IDs via `GET /api/audits/` rather than hardcoding them.
+### Metrics
 
-### Snapshot aggregation
+Metrics are extracted from Reports by the report processor and stored in
+`Metric` records for trend analysis. Each `Metric` has a `Definition` that
+describes what was measured. Discover available Definitions via `GET /api/definitions/`.
 
-Pre-aggregated summary tables (`SnapshotCategory`, `SnapshotAudit`) have been
-removed. The API computes summaries on demand. Per-page results are the source
-of truth — query and aggregate them directly.
+Only Definitions registered in the database are extracted. The processor loads
+all `Definition` rows for the current audit and skips any metric the report
+contains that has no matching Definition. Lighthouse Definition slugs are the
+Lighthouse audit IDs directly (e.g. `largest-contentful-paint`).
+
+### Findings
+
+Findings are open-ended. The `type` field is a free slug. Standard types
+created by the application's own processors are documented in the processor
+source. External agents can upload findings via `POST /runs/{id}/reports/{id}/findings/`
+after secondary processing. The `source` field records who created the finding.
 
 ---
 
@@ -146,40 +207,25 @@ output and writing code to produce clean JSON, always choose JSON.
 
 ### Data model conventions
 
-- All models inherit `TimeStampedModel` (adds `created`, `modified`).
-- Scan/Run status: `pending / running / complete / failed`.
-- Sensitive or large raw data (SQL text, stack traces, raw Lighthouse JSON) is
-  stored separately from summary scalars and pruned on a shorter schedule.
-  Summary scalars are kept for long-term trend analysis (1 year default).
+- `created` / `modified` timestamps on all models (auto_now_add / auto_now).
+- Run status: `running / complete / failed`.
+- Metric `rating`: `poor / needs-improvement / good`.
+- Finding `severity`: `error / warning / info`.
+- Sensitive or large raw data (Lighthouse JSON) stored in files (`FileField`),
+  not in the database; `Report.data` holds structured summaries only.
 
 ### Admin interface
 
-All Snapshot and Page models are registered read-only. Data is immutable after
-collection. Trigger actions belong on the `Site` admin via Django admin actions.
+All models registered in Django admin. Data is immutable after collection;
+admin is read-only for Reports, Metrics, and Findings. Trigger actions belong
+on the Job or Site admin.
 
 ### Settings and environment
 
 - `DJANGO_ENV`: `development` or `production`.
-- Feature flags that gate collection live in `config/settings.py`.
-- Per-site overrides (Lighthouse CLI flags, companion middleware secrets, etc.)
-  live in `Site.extra_config` (JSONField).
-
----
-
-## Planned Work
-
-Full details in `docs/development-plan.md`.
-
-| Stage | Work |
-|---|---|
-| ~~0~~ | ~~Foundation (done)~~ |
-| ~~1~~ | ~~Per-tool enable flags; environment tagging (done)~~ |
-| 2 | DDT integration (new `debugtoolbar` app) |
-| 3 | Multi-instance sync (push selected tools local → shared server) |
-| 4 | JS/CSS coverage (extends pageweight app) |
-| 5 | Cold/warm cache comparison (extends pageweight app) |
-| 6 | HTML validation (new app) |
-| 7 | Broken link detection (new app) |
+- `Site.environment`: `local`, `staging`, `production` — tag each Site with
+  the environment it represents. Filter metrics by environment when comparing;
+  Lighthouse scores from a local machine and from staging are not comparable.
 
 ---
 
@@ -187,11 +233,10 @@ Full details in `docs/development-plan.md`.
 
 | File | Why |
 |---|---|
-| `apps/headers/` | Simplest collector — the reference pattern for new collectors |
-| `apps/sites/tasks.py` | Where all collectors are dispatched |
-| `apps/api/routers/pages.py` | Reference for a collector API router |
-| `apps/api/routers/introspection.py` | The agent-context endpoint |
-| `config/settings.py` | Environment gating and feature flags |
+| `apps/audits/models/` | All data models — start here |
+| `apps/audits/tasks.py` | How Jobs are dispatched and runs completed |
+| `apps/audits/reports/lighthouse.py` | Reference report processor |
+| `apps/api/routers/pages.py` | Reference for API router patterns |
+| `apps/api/schemas.py` | All API response shapes |
 | `docs/development-plan.md` | Full roadmap — what is yet to be built |
 | `docs/decisions.md` | Decision log — what changed and why |
-| `docs/ddt-integration-plan.md` | Detailed design for the DDT collector  |

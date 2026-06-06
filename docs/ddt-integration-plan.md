@@ -3,42 +3,55 @@
 ## Overview
 
 This document describes how to integrate Django Debug Toolbar (DDT) data collection
-into cricket as a fourth independent collector. DDT differs from the other collectors
-in two important ways: it requires a cooperative target application, and its most
-valuable metrics (SQL query counts) are environment-independent, making local
-collection meaningful on a shared server.
+into cricket as a new audit type. DDT differs from the other audits in two important
+ways: it requires a cooperative target application, and its most valuable metrics
+(SQL query counts) are environment-independent, making local collection meaningful
+on a shared server.
 
 ---
 
 ## Architecture fit
 
-DDT slots into cricket as a standard collector — a `debugtoolbar` app following the
-same Job/Run/Page pattern as `lighthouse`, `headers`, and `pageweight`.
+Under the unified `audits` model, DDT is not a separate Django app — it is a set of
+new `Audit` records, each backed by a Celery task and a report processor.
+
+Each DDT panel becomes its own `Audit` so that the `Job.audits` M2M controls which
+panels are collected, just as it controls which tool audits run:
 
 ```
-debugtoolbar.Job  (site FK, panels, url_source, environment="local", crontab=...)
-  └── debugtoolbar.Run   (status, page_count)
-        └── debugtoolbar.Page  (url · scalar metrics · raw JSONFields)
+Audit(slug="ddt-sql")     → task: audits.tasks.audit_ddt_page ("ddt-sql")
+Audit(slug="ddt-cache")   → task: audits.tasks.audit_ddt_page ("ddt-cache")
 ```
 
-Like all per-tool Job models, `debugtoolbar.Job` carries its configuration as typed
-fields. The `panels` MultiSelectField (sql, cache, templates, signals, request,
-profiling) replaces the generic `config["panels"]` JSON approach — the admin renders
-checkboxes, panel selection is validated at the model level, and the selected panels
-are translated to the companion endpoint's `?panels=` query parameter at dispatch time.
+A Job that should collect DDT SQL and cache data selects both `ddt-sql` and `ddt-cache`
+in its `audits` M2M. A Job that should only collect SQL query counts selects `ddt-sql`
+only. No per-panel booleans on the Job model — panel selection is Job configuration.
 
-Setting `environment="local"` on the Job makes it unambiguous that data came from a
-developer machine. Agents filter by `?environment=local` on the toolbar runs endpoint
-to see only DDT data.
+```
+audits.Job (audits=[ddt-sql, ddt-cache, ...])
+  └── audits.Run
+        └── audits.Report (audit="ddt-sql", page=..., data={raw panel JSON})
+              └── audits.Metric (definition="sql-query-count", value=47)
+              └── audits.Metric (definition="sql-duplicate-count", value=3)
+```
 
-The distinction from other collectors:
+Setting `Site.environment = "local"` on the Site used for DDT Jobs makes provenance
+unambiguous. Agents filter by site slug or environment when querying results.
 
-| | Other collectors | DDT |
-|---|---|---|
-| Target | Any HTTP server | Django app with DDT installed |
-| Environment | staging / production | local only |
-| Value | Load time, headers, security | SQL query counts, cache behaviour |
-| Env-independence | No — results differ by environment | Yes — same code paths execute locally |
+---
+
+## Per-job audit configuration: `Job.config`
+
+Some audits need per-job configuration that doesn't fit the common `Job` fields.
+For DDT, the companion endpoint secret (`cricket_secret`) is job-specific — different
+deployments use different secrets.
+
+Resolution: add `config = JSONField(null=True, blank=True)` to `Job`. The DDT task
+reads `job.config.get("cricket_secret", "")`. Operators set this in the admin.
+
+This field is an escape hatch used only by audits with site-specific secrets or
+overrides. Most audits ignore it. It does not replace typed fields for common
+configuration (device, schedule, etc.).
 
 ---
 
@@ -46,7 +59,7 @@ The distinction from other collectors:
 
 Django Debug Toolbar stores panel data in Django's cache using a `store_id` generated
 per request. The store_id is embedded in the response HTML (as `data-store-id` on the
-toolbar container) and/or in the `djdt` cookie.
+toolbar container).
 
 ### Alternative considered: cookie + `render_panel` endpoint
 
@@ -82,8 +95,8 @@ django_cricket/
 4. Returns a JSON response mapping panel names to their structured stats.
 
 **Authentication**: Protected by shared secret + `INTERNAL_IPS`. The secret is stored
-in `debugtoolbar.Job.cricket_secret` — a typed field, not a JSON blob. Different Jobs
-can use different secrets, configured in the admin without editing JSON.
+in `Job.config["cricket_secret"]`. Different Jobs use different secrets, set in the
+admin without editing JSON.
 
 **Target app setup:**
 ```python
@@ -95,262 +108,145 @@ CRICKET_SECRET = env.str("CRICKET_SECRET", default="")
 urlpatterns += [path("__cricket__/", include("django_cricket.urls"))]
 ```
 
-Cricket sends the secret in a request header when fetching panel data. Installation:
-`pip install django-cricket`.
+Cricket sends the secret in a request header. Installation: `pip install django-cricket`.
 
-**Panel selection**: the endpoint accepts `?panels=SQLPanel,CachePanel` so cricket
-can request only the panels it needs. The enabled panel boolean fields on
-`debugtoolbar.Job` are collected into this list at dispatch time — profiling excluded
-from the default.
+**Panel selection**: The endpoint accepts `?panels=SQLPanel,CachePanel`. The DDT task
+derives the panel list from `audit_slug` — `ddt-sql` → `SQLPanel`, `ddt-cache` →
+`CachePanel`. A single HTTP request to the companion endpoint can fetch multiple panels
+at once; the task batches all DDT audits in the same Run for the same page into one
+companion request.
 
 ---
 
-## What data to collect
+## What data to collect and how it maps to the unified model
 
-| Panel | Scalar metrics (kept 1 year) | Raw data (JSONField, pruned after 90 days) |
+| Panel | `Metric` records (long-term) | `Report.data` (pruned after 90 days) |
 |-------|------------------------------|--------------------------------------------|
-| SQL | query_count, total_time_ms, duplicate_count, slowest_query_ms | queries: [{sql, time_ms, traceback}] |
-| Cache | total_calls, hits, misses, total_time_ms | calls: [{command, key, time_ms}] |
-| Templates | template_count | templates: [{name, render_time_ms}] |
-| Signals | signal_count | signals: [{signal, receiver}] |
-| Request | — | request_data: {method, path, GET, POST, session_keys} |
-| Profiling | — | profile: {top_functions} — off by default, expensive |
+| SQL (`ddt-sql`) | `sql-query-count`, `sql-total-time-ms`, `sql-duplicate-count`, `sql-slowest-ms` | `queries: [{sql, time_ms, traceback}]` |
+| Cache (`ddt-cache`) | `cache-calls`, `cache-hits`, `cache-misses`, `cache-total-time-ms` | `calls: [{command, key, time_ms}]` |
+
+Additional panels that could be added later:
+
+| Panel | `Metric` records | `Report.data` |
+|-------|-----------------|--------------|
+| Templates (`ddt-templates`) | `template-count` | `[{name, render_time_ms}]` |
+| Signals (`ddt-signals`) | `signal-count` | `[{signal, receiver}]` |
+| Request (`ddt-request`) | — | `{method, path, GET, POST, session_keys}` |
+| Profiling (`ddt-profiling`) | — | `{top_functions}` |
 
 **SQL panel is the primary value.** Query counts are environment-independent: the same
 code paths execute regardless of where the app runs. Regressions show up locally.
 
-**Two-tier storage rationale**: scalar summary metrics are the durable analytical signal.
-Raw JSONFields contain SQL text, stack traces, and request parameters that may be
+**Two-tier storage rationale**: `Metric` records are the durable analytical signal.
+`Report.data` contains SQL text, stack traces, and request parameters that may be
 sensitive; these are pruned separately on a shorter schedule.
 
 ---
 
 ## Cadence and selectivity
 
-A DDT Job has its own crontab and URL source, independent of Lighthouse or pageweight
-Jobs for the same site. Typical configuration:
+A DDT Job selects `ddt-sql` and `ddt-cache` in its `audits` M2M and sets a crontab
+and URL list. Since there is no per-panel boolean on the Job, dropping a panel means
+removing the corresponding `Audit` from `Job.audits`.
+
+Typical configuration:
 
 ```
-lighthouse.Job:    site=mysite, platform=mobile,
-                   cat_performance=True, cat_seo=True,
-                   cat_accessibility=False, cat_best_practices=False,
-                   crontab="0 0 1 * *"  (monthly)
+# Monthly Lighthouse run
+Job: site=mysite, audits=[lighthouse], schedule="0 0 1 * *"
 
-pageweight.Job:    site=mysite, device=mobile,
-                   crontab="0 * * * *"  (hourly)
+# Hourly page-weight run
+Job: site=mysite, audits=[page-weight], schedule="0 * * * *"
 
-debugtoolbar.Job:  site=mysite,
-                   panel_sql=True, panel_cache=True, panel_templates=True,
-                   panel_signals=False, panel_request=False, panel_profiling=False,
-                   environment=local, url_source=url_list,
-                   url_value="https://localhost:8000/\nhttps://localhost:8000/about/",
-                   crontab="0 9 * * 1-5"  (weekday mornings)
+# Weekday DDT collection (local environment, explicit URL list)
+Job: site=mysite-local, audits=[ddt-sql, ddt-cache],
+     urls="https://localhost:8000/\nhttps://localhost:8000/about/",
+     schedule="0 9 * * 1-5",
+     config={"cricket_secret": "..."}
 ```
 
-The `environment` field on each Job makes provenance explicit. A Job existing is the
-enablement signal — no enable flag on Site.
+Using a separate `Site` record (e.g. `mysite-local` with `environment="local"`) makes
+provenance unambiguous. Agents filter by site slug or environment.
 
 ---
 
 ## Local → shared server workflow
 
 A developer running cricket locally collects DDT data. Only environment-independent
-data (SQL counts, cache stats) is worth pushing to a shared server. Pageweight and
-Lighthouse must be measured on the target environment, not pushed from local.
+data is worth pushing to a shared server. Scalar metrics in `Metric` records are
+portable; `Report.data` raw detail is not pushed.
 
-**What is and is not environment-independent:**
-
-| Metric | Env-independent? | Recommendation |
-|--------|-----------------|----------------|
-| SQL query count | Yes | Collect locally, push |
-| SQL query time | Partially | Push with caveat; environment tag makes it clear |
-| Cache hit/miss | Yes | Collect locally, push |
-| Page weight | No | Collect on target env only |
-| Lighthouse scores | No | Collect on target env only |
-| HTTP headers | Partially | Collect on target env only |
-
-**Push mechanism** (Stage 3 in `docs/development-plan.md`):
-
-```bash
-python manage.py push_run <run_id> \
-    --remote https://cricket.example.com \
-    --key <admin-token>
-```
-
-The command serialises the Run and its Pages and POSTs to the remote:
-
-```
-POST /api/sites/{slug}/toolbar/runs/push/
-Authorization: Bearer <admin-api-key>
-```
-
-The remote creates a new `debugtoolbar.Run` and its pages, preserving the source
-`Job.environment` tag. An agent querying the shared server sees:
-
-- `GET /api/sites/mysite/lighthouse/runs/?environment=staging` → production-quality data
-- `GET /api/sites/mysite/toolbar/runs/?environment=local` → DDT data from local
+See Stage 3 in `docs/development-plan.md` for the push API design.
 
 ---
 
 ## Implementation plan
 
-### Phase 1: `debugtoolbar` app
+### Phase 1: `Job.config` field
 
-**Estimated effort: 2–3 days**
+Add `config = JSONField(null=True, blank=True)` to `audits.Job`. Register it in the
+admin. Write a migration.
 
-Create `apps/debugtoolbar/` following the `headers` app as the reference pattern.
+### Phase 2: DDT audit registration
 
-**`apps/debugtoolbar/models/job.py`**
-```python
-class Job(BaseJob):
-    # One boolean per panel — renders as checkboxes in the admin,
-    # filters cleanly in the ORM, no MultiSelectField package needed.
-    panel_sql       = BooleanField(default=True)
-    panel_cache     = BooleanField(default=True)
-    panel_templates = BooleanField(default=True)
-    panel_signals   = BooleanField(default=True)
-    panel_request   = BooleanField(default=True)
-    panel_profiling = BooleanField(default=False)  # expensive, off by default in DDT
+Data migration to create `Audit` records for `ddt-sql` and `ddt-cache` with their
+task paths. Create `Definition` records for all DDT metrics.
 
-    cricket_secret  = CharField(max_length=100, blank=True,
-        help_text="Shared secret for /__cricket__/toolbar/ endpoint authentication")
+### Phase 3: DDT task and report processor
+
+**`apps/audits/tasks.py`** — add or extend `audit_ddt_page(run_id, audit_slug, page_id)`:
+
+```
+1. Load Run, Audit (slug=audit_slug), Page.
+2. Read Job.config.get("cricket_secret", "").
+3. Check settings.DDT_COLLECTION_ENABLED — raise non-retrying exception if False.
+4. Make HTTP request to target page — extract store_id from HTML.
+5. Request companion endpoint: /__cricket__/toolbar/?store_id=<id>&panels=<panel>.
+6. Create Report(run, audit, page, data=<panel JSON>).
+7. Call report processor to extract Metric records.
+8. Call run.task_complete().
 ```
 
-Each panel is an explicit boolean — no JSON blob, no third-party MultiSelectField
-package. The enabled panels are collected into a list at dispatch time and passed as
-`?panels=SQLPanel,CachePanel,...` to the companion endpoint. The `cricket_secret`
-field replaces `Site.extra_config["cricket_secret"]`.
-
-**`apps/debugtoolbar/models/run.py`**
-```python
-class Run(TimeStampedModel, models.Model):
-    job = ForeignKey(Job, CASCADE, related_name="runs")
-    status = CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    page_count = IntegerField(null=True, blank=True)
-```
-
-**`apps/debugtoolbar/models/page.py`**
-```python
-class Page(TimeStampedModel, models.Model):
-    run = ForeignKey(Run, CASCADE, related_name="pages")
-    url = URLField(max_length=2000)
-    collected = BooleanField(default=False)
-    error = TextField(blank=True)
-
-    # SQL panel — scalar stats kept long-term
-    sql_query_count = IntegerField(null=True, blank=True)
-    sql_total_time_ms = FloatField(null=True, blank=True)
-    sql_duplicate_count = IntegerField(null=True, blank=True)
-    sql_slowest_ms = FloatField(null=True, blank=True)
-
-    # Cache panel — scalar stats kept long-term
-    cache_calls = IntegerField(null=True, blank=True)
-    cache_hits = IntegerField(null=True, blank=True)
-    cache_misses = IntegerField(null=True, blank=True)
-    cache_total_time_ms = FloatField(null=True, blank=True)
-
-    # Template and signal panels
-    template_count = IntegerField(null=True, blank=True)
-    signal_count = IntegerField(null=True, blank=True)
-
-    # Raw detail — pruned after 90 days
-    sql_queries = JSONField(default=list)         # [{sql, time_ms, traceback}]
-    cache_calls_detail = JSONField(default=list)  # [{command, key, time_ms}]
-    templates = JSONField(default=list)           # [{name, render_time_ms}]
-    signals = JSONField(default=list)             # [{signal, receiver}]
-    request_data = JSONField(default=dict)        # {method, path, GET, POST, session_keys}
-```
-
-**`apps/debugtoolbar/tasks.py`** — same chord pattern as `headers/tasks.py`:
-```
-take_toolbar_scan(job_pk)   → creates Run, dispatches per-page tasks
-collect_page_panels(page_pk) → makes two HTTP requests, populates Page
-complete_toolbar_run(run_pk) → sets status=COMPLETE, page_count
-```
-
-`collect_page_panels` makes two HTTP requests:
-1. The page itself — triggers DDT data collection, returns `store_id` in HTML.
-2. `/__cricket__/toolbar/?store_id=<id>` — returns structured panel JSON.
-
-The `CRICKET_SECRET` is read from `job.cricket_secret` (a typed field on the Job model).
-
-Checks `settings.DDT_COLLECTION_ENABLED` at the top; raises a non-retrying exception
-if False, so the Run transitions to `failed` with a clear message.
+**`apps/audits/reports/ddt.py`** — report processor:
 
 ```python
-# config/settings.py
-DDT_COLLECTION_ENABLED = DJANGO_ENV == "development" and DEBUG
+def process(report: Report):
+    data = report.data
+    audit_slug = report.audit.slug
+
+    if audit_slug == "ddt-sql":
+        sql = data.get("SQLPanel", {}).get("sql_queries", [])
+        upsert_metric(report, "sql-query-count", len(sql))
+        upsert_metric(report, "sql-total-time-ms",
+                      sum(q.get("time_ms", 0) for q in sql))
+        upsert_metric(report, "sql-duplicate-count",
+                      sum(1 for q in sql if q.get("is_duplicate")))
+        if sql:
+            upsert_metric(report, "sql-slowest-ms",
+                          max(q.get("time_ms", 0) for q in sql))
+
+    elif audit_slug == "ddt-cache":
+        cache = data.get("CachePanel", {})
+        calls = cache.get("calls", [])
+        hits  = sum(1 for c in calls if c.get("cache_info") == "Hit")
+        upsert_metric(report, "cache-calls", len(calls))
+        upsert_metric(report, "cache-hits", hits)
+        upsert_metric(report, "cache-misses", len(calls) - hits)
 ```
 
-**`apps/debugtoolbar/management/commands/prune_old_toolbar_data.py`**
+**`apps/audits/management/commands/prune_old_ddt_reports.py`**:
 
-Nullifies the five raw JSONFields on Page records older than N days (default 90),
-preserving all scalar fields. The `--dry-run` flag is required.
+Clears `Report.data` on DDT reports older than N days, preserving the Metric records.
 
 ```bash
-python manage.py prune_old_toolbar_data --days 90 --dry-run
+python manage.py prune_old_ddt_reports --days 90 --dry-run
 ```
 
----
-
-### Phase 2: Companion middleware package (`django-cricket`)
+### Phase 4: Companion middleware package (`django-cricket`)
 
 **Estimated effort: 1–2 days** (separate repository, published to PyPI)
 
-Minimal package, < 150 lines total. See the "Confirmed approach" section above for
-the endpoint specification.
-
----
-
-### Phase 3: API exposure
-
-**Estimated effort: 1 day**
-
-Add `apps/api/routers/toolbar.py`.
-
-```
-GET  /api/sites/{slug}/toolbar/runs/
-GET  /api/sites/{slug}/toolbar/runs/latest/
-GET  /api/sites/{slug}/toolbar/runs/{id}/
-     → RunOut: status, page_count, sql_avg_queries, sql_max_queries, sql_avg_time_ms,
-               cache_hit_rate_avg, environment, created
-
-GET  /api/sites/{slug}/toolbar/runs/{id}/pages/
-     → paginated PageListOut: url, sql_query_count, sql_total_time_ms,
-                              sql_duplicate_count, cache_hits, cache_misses,
-                              template_count, signal_count
-
-GET  /api/sites/{slug}/toolbar/runs/{id}/pages/{page_id}/
-     → PageDetailOut: all scalar fields + raw JSONFields (null if pruned)
-```
-
-Filter parameters: `?environment=`, `?status=`.
-
-Update `agent-context` to document the toolbar endpoints, the environment field, and
-the guidance that pageweight/Lighthouse from different environments should not be
-compared directly.
-
----
-
-### Phase 4: Push to shared server
-
-**Estimated effort: 2–3 days**
-
-See Stage 3 in `docs/development-plan.md`. Cricket-specific detail:
-
-```
-POST /api/sites/{slug}/toolbar/runs/push/
-Authorization: Bearer <admin-api-key>
-Content-Type: application/json
-
-{
-  "run": { ...serialised Run + Pages... }
-}
-```
-
-The remote creates a new `debugtoolbar.Run` with `status=COMPLETE` and attaches the
-Pages. Source `Job.environment` is preserved. HTML reports and file fields are not
-transferred (null on the remote).
+Minimal package, < 150 lines total. See the "Confirmed approach" section above.
 
 ---
 
@@ -358,29 +254,15 @@ transferred (null on the remote).
 
 ```
 apps/
-  debugtoolbar/
-    __init__.py
-    apps.py
-    api.py                   (toolbar router — registered in api/api.py)
-    admin/
-      __init__.py
-      job.py
-      run.py
-      page.py
+  audits/
+    reports/
+      ddt.py                        # Report processor for ddt-* audits
     management/
       commands/
-        prune_old_toolbar_data.py
+        prune_old_ddt_reports.py    # Prune Report.data older than N days
     migrations/
-    models/
-      __init__.py
-      job.py
-      run.py
-      page.py
-    tasks.py
-  sites/
-    management/
-      commands/
-        push_run.py          (Phase 4)
+      0009_job_config.py            # Add Job.config JSONField
+      0010_ddt_audits.py            # Audit + Definition records (data migration)
 
 # Companion package — separate repository:
 django_cricket/
@@ -398,42 +280,39 @@ django_cricket/
 
 | Data | Retention | Rationale |
 |------|-----------|-----------|
-| Scalar stats (query_count, etc.) | 1 year | Trend analysis as features are added |
-| Raw JSONFields (sql_queries, etc.) | 90 days | Sensitive — SQL text, stack traces, request params |
-| Run / Page records | 1 year | Consistent with other collectors |
+| Metric records (query_count, etc.) | 1 year | Trend analysis |
+| Report.data (SQL text, stack traces) | 90 days | Sensitive; pruned in-place |
+| Report records | 1 year | Consistent with other audits |
 
 ---
 
 ## Security considerations
 
-1. **Collection is development-only.** `DDT_COLLECTION_ENABLED` gates collection tasks.
-   In production the task is a no-op. The companion endpoint is only reachable from
-   `INTERNAL_IPS` and requires the shared secret.
+1. **Collection is development-only.** `DDT_COLLECTION_ENABLED` gates the task.
+   In staging/production the task raises a non-retrying exception.
 
-2. **Companion endpoint.** Protected by `INTERNAL_IPS` + shared secret in request header.
-   Secret stored in `debugtoolbar.Job.cricket_secret` — a typed field; different Jobs
-   can use different secrets, managed in the admin without editing JSON.
+2. **Companion endpoint.** Protected by `INTERNAL_IPS` + shared secret in request
+   header. Secret stored in `Job.config["cricket_secret"]` — different Jobs use
+   different secrets, set in the admin.
 
-3. **Raw detail endpoint.** `GET /toolbar/runs/{id}/pages/{id}/` requires an admin API
-   key. The list endpoint (scalar stats only) is accessible to site-scoped keys.
+3. **Raw detail access.** `GET /api/sites/{slug}/runs/{id}/reports/{id}/` requires
+   a valid Bearer token and returns `Report.data`. The same endpoint serves all audit
+   types; there is no special restriction for DDT reports. Operators may choose to
+   restrict API key distribution accordingly.
 
 4. **SQL scrubbing.** The companion serialiser should offer `CRICKET_SCRUB_SQL = True`
    to replace parameter values with `?`. Recommended for staging. Default off.
 
-5. **Push authentication.** The push endpoint requires `APIKey.is_admin = True`. The
-   management command requires the key to be passed explicitly to prevent accidental pushes.
+5. **Push authentication.** The push endpoint (Stage 3) requires an admin API key.
+   The management command requires the key to be passed explicitly.
 
 ---
 
-## Decisions
+## Open questions
 
-| Question | Decision |
-|---|---|
-| Companion package vs. shared Redis | Companion package (`django-cricket`) |
-| Companion secret storage | `debugtoolbar.Job.cricket_secret` typed field — not `Site.extra_config` |
-| Panels to collect | One boolean field per panel on `debugtoolbar.Job`; profiling off by default |
-| Cadence | Separate Job with its own crontab — not coupled to other collectors |
-| Enable/disable | Job existence is the signal — no enable flag on Site |
-| Environment provenance | `Job.environment` field; preserved on push |
-| Selective push | Push one Run (toolbar only) — no concept of "partial scan" |
-| Data retention | Scalar: 1 year; raw JSONFields: 90 days pruned in-place |
+| Question | Options | Recommendation |
+|---|---|---|
+| Batch companion requests | One HTTP request per DDT audit per page, or batch all DDT panels in one request | Batch: detect sibling DDT audits in same Run, fetch all panels in one companion call |
+| `ddt-templates`, `ddt-signals` panels | Add now or defer | Defer until SQL/cache are validated |
+| `ddt-profiling` | Expensive; requires special handling | Defer indefinitely |
+| `prune_old_ddt_reports` scope | Clear just DDT reports or all reports? | DDT only — other audits store smaller structured data, not sensitive raw text |

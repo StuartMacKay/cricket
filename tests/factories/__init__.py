@@ -1,23 +1,21 @@
-from .audit import AuditDefinitionFactory, PageAuditFactory, PageCategoryFactory
-from .page import LighthousePageFactory, PageFactory
-from .scan import (
-    HeadersJobFactory, HeadersRunFactory,
-    LighthouseJobFactory, LighthouseRunFactory,
-    PageweightJobFactory, PageweightRunFactory,
-)
+from .audit import AuditFactory
+from .definition import DefinitionFactory
+from .finding import FindingFactory
+from .job import JobFactory
+from .metric import MetricFactory
+from .page import PageFactory
+from .report import ReportFactory
+from .run import RunFactory
 from .site import SiteFactory
 
 __all__ = (
-    "AuditDefinitionFactory",
-    "HeadersJobFactory",
-    "HeadersRunFactory",
-    "LighthouseJobFactory",
-    "LighthousePageFactory",
-    "LighthouseRunFactory",
-    "PageAuditFactory",
-    "PageCategoryFactory",
+    "AuditFactory",
+    "DefinitionFactory",
+    "FindingFactory",
+    "JobFactory",
+    "MetricFactory",
     "PageFactory",
-    "PageweightJobFactory",
-    "PageweightRunFactory",
+    "ReportFactory",
+    "RunFactory",
     "SiteFactory",
 )

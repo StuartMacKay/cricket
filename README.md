@@ -1,22 +1,26 @@
 # Cricket 🦗
 
-Cricket is a web quality auditing server. It runs Google Lighthouse, HTTP
-header checks, and Puppeteer-based page-weight measurements across one or
-more sites on a cron schedule, stores the results in SQLite, and exposes
-everything through an agent-native REST API.
+Cricket is a web quality auditing server. It runs Google Lighthouse, HTTP header
+checks, and Puppeteer-based page-weight measurements across one or more sites on
+a cron schedule, stores the results in SQLite, and exposes everything through an
+agent-native REST API.
 
 ## What it does
 
-| App | Tool | What it measures |
+| Audit | Tool | What it measures |
 |---|---|---|
 | `lighthouse` | Google Lighthouse 13 | Performance, Accessibility, Best Practices, SEO |
-| `headers` | Python `requests` | HTTP response headers (security, caching, redirects) |
-| `pageweight` | Puppeteer | Transfer size by resource type |
+| `page-headers` | Python `requests` | HTTP response headers (security, caching, redirects) |
+| `page-weight` | Puppeteer | Transfer size by resource type |
 
-Every audit is attached to a **Site** (a URL + sitemap + cron schedule).
-Running an audit creates a **Scan** that groups all per-page results at that
-point in time. Scans can be compared to track improvements or regressions
-over time.
+Each audit type is registered as an **Audit** record. A **Job** selects a Site, a
+set of Audits (e.g. Lighthouse + page-headers), and the pages to audit — either
+discovered from a sitemap or supplied as an explicit URL list. Each Job execution
+creates a **Run** that tracks progress and groups all per-page **Reports**.
+
+Scalar measurements (LCP, FID, transfer size) are extracted from Reports and stored
+as **Metrics** for trend analysis. Open-ended actionable items (broken links, large
+images) are stored as **Findings**, which can also be uploaded via the API by agents.
 
 ## Stack
 
@@ -42,45 +46,66 @@ make createsuperuser
 Open the Django admin at <http://localhost:8000/admin/> and the Celery Flower
 dashboard at <http://localhost:5555>.
 
-## Adding a site
+## Adding a site and running an audit
 
-1. Log in to the admin and open **Sites → Sites → Add site**.
-2. Fill in **Name**, **Slug**, **URL**, and optionally a **Sitemap URL** or
-   **Sitemap file** (leave both blank to audit the homepage only).
-3. Choose a **Platform** — `mobile` (default) or `desktop`.
-4. Set a **Crontab** schedule, e.g. `0 8 1 * *` to run at 08:00 on the first
-   day of each month.
-5. Check **Enabled** and save.
+### 1. Create a Site
 
-To trigger an immediate audit, select the site and choose **Trigger scan**
-from the *Actions* dropdown, or `POST /api/sites/{slug}/scans/`.
+In the admin: **Audits → Sites → Add site**.
 
-## Creating an API key
+Fill in **Name**, **Slug**, **URL**, and optionally **Environment**
+(`local`, `staging`, or `production`). Use separate Site records for different
+environments of the same project — Lighthouse scores from a local machine and from
+staging are not comparable.
 
-Open **Api → Api keys → Add api key** in the admin. Give it a name, leave
-**Site scope** blank to grant access to all sites, and save. Use the generated
-key as a Bearer token: `Authorization: Bearer <key>`.
+### 2. Create a Job
+
+In the admin: **Audits → Jobs → Add job**.
+
+- Select the **Site**.
+- Select one or more **Audits** (e.g. Lighthouse, page-headers).
+- Supply the pages to audit: paste sitemap URLs into **Sitemaps** (one per line)
+  or an explicit list of page URLs into **URLs** (one per line).
+- Set a **Schedule** (crontab, e.g. `0 8 1 * *` for 08:00 on the first of each
+  month). Leave blank for a manual-only Job.
+- Choose a **Device** (`mobile` or `desktop`) and check **Enabled**.
+
+To trigger an immediate run, select the Job in the admin and use the
+**Trigger run** action.
+
+### 3. Create an API key
+
+In the admin: **Api → Api keys → Add api key**. Give it a name and save. Use
+the generated key as a Bearer token: `Authorization: Bearer <key>`.
 
 ## API
 
-The API is agent-native: Bearer auth, cursor pagination, 202 async with
-webhooks, and a machine-readable context document at `GET /api/agent-context/`.
+The API is agent-native: Bearer auth and cursor pagination throughout.
 
 ```
 GET  /api/sites/
 GET  /api/sites/{slug}/
-GET  /api/sites/{slug}/scans/
-GET  /api/sites/{slug}/scans/latest/
-POST /api/sites/{slug}/scans/
-GET  /api/sites/{slug}/scans/{id}/
-GET  /api/sites/{slug}/scans/{id}/pages/
-GET  /api/sites/{slug}/scans/{id}/pages/{page_id}/
-GET  /api/audits/
-GET  /api/jobs/{id}/
-POST /api/feedback/
+
+GET  /api/sites/{slug}/jobs/
+GET  /api/sites/{slug}/jobs/{id}/
+
+GET  /api/sites/{slug}/runs/
+GET  /api/sites/{slug}/runs/{id}/
+GET  /api/sites/{slug}/runs/{id}/reports/
+GET  /api/sites/{slug}/runs/{id}/reports/{id}/
+POST /api/sites/{slug}/runs/{id}/reports/{id}/findings/
+
+GET  /api/sites/{slug}/pages/
+GET  /api/sites/{slug}/pages/{id}/
+GET  /api/sites/{slug}/pages/{id}/metrics/
+GET  /api/sites/{slug}/pages/{id}/metrics/history/
+GET  /api/sites/{slug}/pages/{id}/findings/
+
+GET  /api/sites/{slug}/metrics/
+GET  /api/definitions/
+GET  /api/definitions/{slug}/
 ```
 
-Full usage examples are in [`docs/SKILLS.md`](docs/SKILLS.md).
+Interactive docs are available at `/api/docs`.
 
 ## Development
 
@@ -91,21 +116,15 @@ make build           # rebuild images after dependency changes
 make logs            # follow log output
 make shell           # open a Django shell_plus session
 make migrate
-make tests           # unit tests (fast)
+make tests           # run the test suite
 make checks          # ruff lint + format + mypy
 make coverage        # HTML coverage report in ./coverage/
-```
-
-Integration tests require Chrome and are skipped by default:
-
-```bash
-docker compose exec django pytest -m integration
 ```
 
 ## Environment variables
 
 All variables have working defaults for local development. Copy `.env.example`
-to `.env` and edit as needed. Key variables:
+to `.env` and edit as needed.
 
 | Variable | Purpose |
 |---|---|

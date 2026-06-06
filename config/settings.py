@@ -4,13 +4,11 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 
 """
 
+import environ  # type: ignore
 import os
 import socket
 import sys
-
 from django.core.exceptions import ImproperlyConfigured
-
-import environ  # type: ignore
 
 # #######################
 #   PROJECT DIRECTORIES
@@ -55,11 +53,9 @@ INSTALLED_APPS = [
     "django_celery_results",
     "django_json_widget",
     "watchman",
-    "sites",
-    "lighthouse",
+    "audits",
     "api",
-    "headers",
-    "pageweight",
+    "pages"
 ]
 
 MIDDLEWARE = [
