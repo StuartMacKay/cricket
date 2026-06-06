@@ -124,15 +124,31 @@ make coverage        # HTML coverage report in ./coverage/
 ## Environment variables
 
 All variables have working defaults for local development. Copy `.env.example`
-to `.env` and edit as needed.
+to `.env` and uncomment only what you need to change.
+
+`BROKER_URL`, `CACHE_URL`, and `DATABASE_URL` are **not** set here — they are
+fixed inside `docker-compose.yml` using container-internal hostnames. Overriding
+them in `.env` would break inter-service communication.
+
+**Required in production:**
 
 | Variable | Purpose |
 |---|---|
-| `DJANGO_ENV` | `development` or `production` |
-| `DJANGO_SECRET_KEY` | Required in production |
+| `DJANGO_ENV` | Set to `production` |
+| `DJANGO_DEBUG` | Set to `False` (startup fails in production if `True`) |
+| `DJANGO_SECRET_KEY` | Secret key — startup fails if unset in production |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated permitted hostnames |
-| `DATABASE_URL` | SQLite path (default: `db.sqlite3` in project root) |
-| `BROKER_URL` | Redis URL for Celery broker |
-| `CACHE_URL` | Redis URL for Django cache |
-| `AWS_ACCESS_KEY_ID` etc. | S3-compatible storage (optional) |
-| `DJANGO_SENTRY_DSN` | Sentry error tracking (optional) |
+| `DOCKER_RESTART_POLICY` | Set to `unless-stopped` |
+
+**Optional:**
+
+| Variable | Purpose |
+|---|---|
+| `DJANGO_ADMIN_PATH` | Move admin to a non-standard path |
+| `DJANGO_WATCHMAN_TOKENS` | Protect the health check endpoint |
+| `GUNICORN_NUMBER_OF_WORKERS` | Worker processes; default 1, increase in production |
+| `DJANGO_LOG_LEVEL` | Log verbosity; default `INFO` |
+| `DJANGO_SENTRY_DSN` | Sentry error tracking |
+| `DJANGO_EMAIL_URL` | Email backend; default sends to console |
+| `AWS_ACCESS_KEY_ID` etc. | S3-compatible storage for media files |
+| `DJANGO_STATIC_HOST` | CDN domain for static files |

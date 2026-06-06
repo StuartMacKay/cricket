@@ -222,7 +222,10 @@ on the Job or Site admin.
 
 ### Settings and environment
 
-- `DJANGO_ENV`: `development` or `production`.
+- `DJANGO_ENV`: `development` or `production`. Startup raises an error if set
+  to `production` with `DJANGO_DEBUG=True` or without `DJANGO_SECRET_KEY`.
+- `BROKER_URL`, `CACHE_URL`, `DATABASE_URL` are set by `docker-compose.yml`
+  using container-internal hostnames. Do not override them in `.env`.
 - `Site.environment`: `local`, `staging`, `production` — tag each Site with
   the environment it represents. Filter metrics by environment when comparing;
   Lighthouse scores from a local machine and from staging are not comparable.
