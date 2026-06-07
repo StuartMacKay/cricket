@@ -35,16 +35,26 @@ images) are stored as **Findings**, which can also be uploaded via the API by ag
 ```bash
 git clone <repo-url> cricket
 cd cricket
-make setup          # install pre-commit hooks
-
-cp .env.example .env
-make up             # docker compose up -d
-make migrate
-make createsuperuser
+make develop
 ```
 
-Open the Django admin at <http://localhost:8000/admin/> and the Celery Flower
-dashboard at <http://localhost:5555>.
+`make develop` installs pre-commit hooks, copies `.env.example` to `.env`,
+starts the Docker stack, runs migrations, and seeds a demo admin account,
+site, job, and API key. The API key is printed at the end.
+
+- Admin: <http://localhost:8000/admin/> — `admin` / `password`
+- Flower: <http://localhost:5555>
+- API: `Authorization: Bearer <key printed by make develop>`
+
+Individual steps are also available as separate targets if you need to re-run
+them:
+
+| Target | What it does |
+|---|---|
+| `make admin` | Create the `admin` superuser (idempotent) |
+| `make demo` | Create the example.com site and job (idempotent) |
+| `make apikey` | Print the dev API key, write it to `.env` as `CRICKET_API_KEY` |
+| `make secretkey` | Generate a new Django secret key, write it to `.env` as `DJANGO_SECRET_KEY` |
 
 ## Adding a site and running an audit
 
@@ -76,6 +86,8 @@ To trigger an immediate run, select the Job in the admin and use the
 
 In the admin: **Api → Api keys → Add api key**. Give it a name and save. Use
 the generated key as a Bearer token: `Authorization: Bearer <key>`.
+
+Or from the command line: `make apikey`.
 
 ## API
 
@@ -119,12 +131,18 @@ make migrate
 make tests           # run the test suite
 make checks          # ruff lint + format + mypy
 make coverage        # HTML coverage report in ./coverage/
+
+make admin           # create admin superuser (idempotent)
+make demo            # create example.com site and job (idempotent)
+make apikey          # print dev API key, write to .env as CRICKET_API_KEY
+make secretkey       # generate secret key, write to .env as DJANGO_SECRET_KEY
 ```
 
 ## Environment variables
 
-All variables have working defaults for local development. Copy `.env.example`
-to `.env` and uncomment only what you need to change.
+All variables have working defaults for local development. `make develop`
+copies `.env.example` to `.env` automatically — uncomment only what you need
+to change.
 
 `BROKER_URL`, `CACHE_URL`, and `DATABASE_URL` are **not** set here — they are
 fixed inside `docker-compose.yml` using container-internal hostnames. Overriding
@@ -152,3 +170,4 @@ them in `.env` would break inter-service communication.
 | `DJANGO_EMAIL_URL` | Email backend; default sends to console |
 | `AWS_ACCESS_KEY_ID` etc. | S3-compatible storage for media files |
 | `DJANGO_STATIC_HOST` | CDN domain for static files |
+| `CRICKET_API_KEY` | Dev API key written by `make apikey` — use as `Authorization: Bearer <key>` |

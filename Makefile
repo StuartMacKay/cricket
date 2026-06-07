@@ -60,6 +60,64 @@ setup:
 	@echo "Installing pre-commit hooks..."
 	pre-commit install --install-hooks
 
+# Creates a local .env from the example only if one does not already exist.
+.env:
+	cp .env.example .env
+
+# Spin up the full development environment from a fresh checkout.
+# After this runs, the app is at http://localhost:8000 and the API key
+# is printed at the end. Targets that generate values are skipped when
+# the corresponding variable is already set in .env.
+.PHONY: develop
+develop: setup .env up migrate admin demo
+	@grep -q '^export DJANGO_SECRET_KEY=' .env || $(MAKE) --no-print-directory secretkey
+	@echo ""
+	@echo "---"
+	@echo "Admin:  http://localhost:8000/admin/  (username: admin  password: password)"
+	@echo "Flower: http://localhost:5555"
+	@echo "API key:"
+	@$(MAKE) --no-print-directory apikey
+
+# Create a non-interactive admin superuser. Idempotent.
+.PHONY: admin
+admin:
+	@echo "Creating admin superuser (username: admin, password: password)..."
+	$(exec) python manage.py shell -c \
+	  "from django.contrib.auth import get_user_model; U = get_user_model(); \
+	   U.objects.filter(username='admin').exists() or \
+	   U.objects.create_superuser('admin', 'admin@example.com', 'password')"
+
+# Print the development API key (creating it if it does not exist) and write
+# it to .env under CRICKET_API_KEY.
+.PHONY: apikey
+apikey:
+	@$(exec) python manage.py create_api_key | tee /tmp/.cricket_api_key
+	@python3 -c "\
+import re; \
+k = open('/tmp/.cricket_api_key').read().strip(); \
+c = open('.env').read(); \
+c = re.sub(r'^#?export CRICKET_API_KEY=.*', 'export CRICKET_API_KEY=' + k, c, flags=re.MULTILINE); \
+open('.env', 'w').write(c)"
+	@rm -f /tmp/.cricket_api_key
+
+# Generate a Django secret key and write it to .env under DJANGO_SECRET_KEY.
+.PHONY: secretkey
+secretkey:
+	@$(exec) python manage.py generate_secret_key | tee /tmp/.cricket_secret_key
+	@python3 -c "\
+import re; \
+k = open('/tmp/.cricket_secret_key').read().strip(); \
+c = open('.env').read(); \
+c = re.sub(r'^#?export DJANGO_SECRET_KEY=.*', 'export DJANGO_SECRET_KEY=' + k, c, flags=re.MULTILINE); \
+open('.env', 'w').write(c)"
+	@rm -f /tmp/.cricket_secret_key
+
+# Create a demo site (example.com) and job for local development. Idempotent.
+.PHONY: demo
+demo:
+	@echo "Creating demo site and job..."
+	$(exec) python manage.py create_demo
+
 # ##########
 #   Docker
 # ##########
