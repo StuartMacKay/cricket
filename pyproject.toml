@@ -6,7 +6,7 @@ dependencies = [
     "Django>=6.0,<7.0",
     "celery",
     "croniter",
-    "django-celery-beat",
+    "django>=6.0.6,<7.0",
     "django-celery-results",
     "django-environ",
     "django_json_widget",
