@@ -15,7 +15,6 @@ x-app: &default-app
     DJANGO_LOG_LEVEL: ${DJANGO_LOG_LEVEL}
     DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
     DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
-    CRICKET_API_KEY: ${CRICKET_API_KEY}
   init: true
   restart: "unless-stopped"
   tty: true
