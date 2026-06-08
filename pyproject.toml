@@ -41,7 +41,6 @@ tests = [
 dev = [
     { include-group = "tests" },
     "bump-my-version",
-    "django-debug-toolbar",
     "flower",
     "django-extensions",
     "django-stubs",

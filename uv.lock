@@ -559,7 +559,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "bump-my-version" },
-    { name = "django-debug-toolbar" },
     { name = "django-extensions" },
     { name = "django-stubs" },
     { name = "filetype" },
@@ -615,7 +614,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "bump-my-version" },
-    { name = "django-debug-toolbar" },
     { name = "django-extensions" },
     { name = "django-stubs" },
     { name = "filetype" },
@@ -724,19 +722,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a6/b5/9966c28e31014c228305e09d48b19b35522a8f941fe5af5f81f40dc8fa80/django_celery_results-2.6.0.tar.gz", hash = "sha256:9abcd836ae6b61063779244d8887a88fe80bbfaba143df36d3cb07034671277c", size = 83985, upload-time = "2025-04-10T08:23:52.677Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/da/70f0f3c5364735344c4bc89e53413bcaae95b4fc1de4e98a7a3b9fb70c88/django_celery_results-2.6.0-py3-none-any.whl", hash = "sha256:b9ccdca2695b98c7cbbb8dea742311ba9a92773d71d7b4944a676e69a7df1c73", size = 38351, upload-time = "2025-04-10T08:23:49.965Z" },
-]
-
-[[package]]
-name = "django-debug-toolbar"
-version = "6.3.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "sqlparse" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d8/ea/b62673424dd72d2dbf5adf4145281a421d5792f47380d9bc8e3b11e1a769/django_debug_toolbar-6.3.0.tar.gz", hash = "sha256:f830a86fe02e17f625a22cfbed24a5bd1500762e201ec959c50efb0f9327282b", size = 334079, upload-time = "2026-04-02T16:07:01.385Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7d/9e/d8c3c845f4b5ccac7377c19f4049e7e00c6f121846a81f69a497b45734df/django_debug_toolbar-6.3.0-py3-none-any.whl", hash = "sha256:a199ce3d0f884739a9096835ad417479fede05f3b3c4824bc8b354721ba8f629", size = 298304, upload-time = "2026-04-02T16:06:59.617Z" },
 ]
 
 [[package]]

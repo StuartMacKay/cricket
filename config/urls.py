@@ -55,8 +55,3 @@ if settings.DJANGO_ENV == "development" and settings.DEBUG:
         path("__debug__/sentry/", trigger_error),
     ]
 
-    import debug_toolbar  # type: ignore
-
-    urlpatterns += [
-        path("__debug__/toolbar/", include(debug_toolbar.urls)),  # type: ignore
-    ]

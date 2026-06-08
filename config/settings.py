@@ -6,7 +6,6 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 
 import environ  # type: ignore
 import os
-import socket
 import sys
 from django.core.exceptions import ImproperlyConfigured
 
@@ -73,13 +72,8 @@ MIDDLEWARE = [
 
 if DJANGO_ENV == "development" and DEBUG:
     INSTALLED_APPS += [
-        "debug_toolbar",
         "django_extensions",
     ]
-
-    MIDDLEWARE = [
-        "debug_toolbar.middleware.DebugToolbarMiddleware",
-    ] + MIDDLEWARE
 
 # ##############
 #   WEB SERVER
@@ -89,16 +83,6 @@ ROOT_URLCONF = "config.urls"
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-if DEBUG:
-    # From cookiecutter-django: We need to configure an IP address to
-    # allow connections from, but in Docker we can't use 127.0.0.1 since
-    # this runs in a container but we want to access the django_debug_toolbar
-    # from our browser outside of the container.
-    hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
-    INTERNAL_IPS = [ip[: ip.rfind(".")] + ".1" for ip in ips] + [
-        "127.0.0.1",
-        "10.0.2.2",
-    ]
 
 WATCHMAN_TOKENS = env.str("DJANGO_WATCHMAN_TOKENS", None)
 
