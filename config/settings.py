@@ -139,6 +139,9 @@ AUTHENTICATION_BACKENDS = [
 
 # Redirect HTTP requests to HTTPS, but only in production
 SECURE_SSL_REDIRECT = DJANGO_ENV == "production"
+# Trust the X-Forwarded-Proto header set by Coolify's Traefik proxy so Django
+# knows the original request was HTTPS even though Traefik forwards it as HTTP.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # Set the "X-Content-Type-Options: nosniff" header if it is not set already.
 SECURE_CONTENT_TYPE_NOSNIFF = True
 # Don't send the session cookie unless the connection is secure.
