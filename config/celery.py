@@ -16,7 +16,7 @@ class CeleryConfig:
     # be needed.
     worker_hijack_root_logger = False
 
-    broker_url = os.environ.get("BROKER_URL", "redis://localhost:6379/1")
+    broker_url = "redis://redis:6379/1"
 
     # Store the results from the tasks in the database. They will be deleted
     # by celery after one day.

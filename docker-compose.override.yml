@@ -1,52 +1,43 @@
-# docker-compose.override.yml — local development overrides.
-#
-# Docker Compose automatically merges this file with docker-compose.yml
-# when you run `docker compose up`, so no extra flags are needed.
-#
-# What this does:
-#   - Builds the `dev` image stage (includes dev/test dependencies)
-#   - Mounts your local source into the container so code changes are
-#     reflected immediately without rebuilding the image
-#   - Replaces gunicorn with Django's dev server (auto-reloads on save)
-#
-# The virtualenv lives at /venv (outside /app) so it is never shadowed
-# by the source bind mount.
-#
-# media/ and static/ use host bind mounts so that generated files are
-# directly accessible on the host and are written by the same UID (1000)
-# as the container's python user — avoiding the root-owned named-volume
-# permission problem.
+x-source: &source
+  - ./apps:/app/apps
+  - ./bin:/app/bin
+  - ./config:/app/config
+  - ./locale:/app/locale
+  - ./manage.py:/app/manage.py
+  - ./templates:/app/templates
 
 services:
   django:
     build:
       target: dev
-    command: python manage.py runserver 0.0.0.0:8000
-    environment:
-      # Store the SQLite file in the project root so it's visible on the host
-      DATABASE_URL: "${DATABASE_URL-sqlite:////app/db.sqlite3}"
-    volumes:
-      - .:/app
-      - ./media:/app/media
-      - ./static:/app/static
-
-  celery-worker:
-    build:
-      target: dev
-    environment:
-      DATABASE_URL: "${DATABASE_URL-sqlite:////app/db.sqlite3}"
-    volumes:
-      - .:/app
-      - ./media:/app/media
-
+    ports:
+      - "8000:8000"
+    volumes: *source
   celery-beat:
     build:
       target: dev
-    volumes:
-      - .:/app
-
+    volumes: *source
+  celery-worker:
+    build:
+      target: dev
+    volumes: *source
   flower:
     build:
       target: dev
-    volumes:
-      - .:/app
+    depends_on:
+      redis:
+        condition: "service_started"
+        required: false
+    environment:
+      DJANGO_ENV: ${DJANGO_ENV}
+      DJANGO_DEBUG: ${DJANGO_DEBUG}
+      DJANGO_LOG_LEVEL: ${DJANGO_LOG_LEVEL}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+    command: celery -A config flower
+    ports:
+      - "5555:5555"
+    volumes: *source
+  redis:
+    ports:
+      - "6379:6379"

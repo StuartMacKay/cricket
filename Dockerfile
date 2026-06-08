@@ -14,7 +14,7 @@ ARG GID=1000
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
-        libcairo2 libpango-1.0-0 libpangoft2-1.0-0 \
+        libcairo2 libpango-1.0-0 libpangoft2-1.0-0 dialog \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs chromium \
     && rm -rf /var/lib/apt/lists/* /usr/share/doc /usr/share/man \
@@ -27,6 +27,8 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:0.9.18 /uv /usr/local/bin/uv
 
 USER python
+
+RUN mkdir -p /app/data /app/media /app/static
 
 ENV LC_ALL="C.UTF-8" \
     PYTHONUNBUFFERED="true" \
@@ -71,6 +73,12 @@ RUN npm ci
 
 WORKDIR /app
 
+EXPOSE 8000
+
+ENTRYPOINT ["/app/bin/django-entrypoint"]
+
+CMD ["gunicorn", "-c", "config/gunicorn.py", "config.wsgi"]
+
 # ##############
 #   Production
 # ##############
@@ -82,12 +90,7 @@ FROM dependencies AS app
 
 LABEL maintainer="Stuart MacKay <smackay@fastmail.com>"
 
-ARG DEBUG="false"
-ENV DEBUG="${DEBUG}"
-
 COPY --chown=python:python . /app
-
-COPY --chown=python:python node/ /app/node/
 
 WORKDIR /app/node
 

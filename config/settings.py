@@ -16,6 +16,7 @@ from django.core.exceptions import ImproperlyConfigured
 
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(CONFIG_DIR)
+DATA_DIR = os.path.join(ROOT_DIR, "data")
 NODE_DIR = os.path.join(ROOT_DIR, "node")
 
 sys.path.insert(0, os.path.join(ROOT_DIR, "apps"))
@@ -26,14 +27,14 @@ sys.path.insert(0, os.path.join(ROOT_DIR, "apps"))
 
 env = environ.Env()
 
-DJANGO_ENV = env.str("DJANGO_ENV", default="development")
+DJANGO_ENV = env.str("DJANGO_ENV")
 
 if DJANGO_ENV not in ("development", "production"):
     raise ImproperlyConfigured(
         "Unknown environment name for settings: '%s'" % DJANGO_ENV
     )
 
-DEBUG = env.bool("DJANGO_DEBUG", default=True)
+DEBUG = env.bool("DJANGO_DEBUG")
 
 if DJANGO_ENV == "production" and DEBUG:
     raise ImproperlyConfigured("'DEBUG = True' is not allowed in production")
@@ -108,7 +109,10 @@ WATCHMAN_TOKENS = env.str("DJANGO_WATCHMAN_TOKENS", None)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 DATABASES = {
-    "default": env.db_url(default=f"sqlite:///{ROOT_DIR}/db.sqlite3")
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": f"{DATA_DIR}/db.sqlite3",
+    }
 }
 
 # ###########
@@ -118,7 +122,7 @@ DATABASES = {
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": env.str("CACHE_URL", default="redis://localhost:6379/0"),
+        "LOCATION": "redis://redis:6379/0",
     }
 }
 
@@ -126,14 +130,12 @@ CACHES = {
 #   SECURITY
 # ############
 
-SECRET_KEY = env.str("DJANGO_SECRET_KEY", default="<not-set>")
+SECRET_KEY = env.str("DJANGO_SECRET_KEY")
 
 if DJANGO_ENV == "production" and SECRET_KEY == "<not-set>":
     raise ImproperlyConfigured("You must define a secret key for production")
 
-ALLOWED_HOSTS = env.list(
-    "DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "0.0.0.0"]
-)
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -233,39 +235,18 @@ STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
 ]
 
-# DJANGO_STATIC_HOST only needs to be set when using a CDN such as CloudFront
-# to cache the files served by whitenoise.
+STATIC_ROOT = os.path.join(ROOT_DIR, "static")
+STATIC_URL = "/static/"
 
-STATIC_ROOT = env.str("DJANGO_STATIC_ROOT", default=os.path.join(ROOT_DIR, "static"))
-STATIC_HOST = env.str("DJANGO_STATIC_HOST", default="")
-STATIC_URL = STATIC_HOST + "/static/"
-
-MEDIA_ROOT = env.str("DJANGO_MEDIA_ROOT", default=os.path.join(ROOT_DIR, "media"))
+MEDIA_ROOT = os.path.join(ROOT_DIR, "media")
 MEDIA_URL = "/media/"
-
-# S3 storage options for serving uploaded files from an AWS S3 Bucket.
-# The configure may differ for other S3 compatible service. For example,
-# for Digital Ocean's Spaces service you need to set AWS_S3_REGION_NAME
-# and AWS_S3_ENDPOINT_URL instead of AWS_S3_CUSTOM_DOMAIN.
-
-AWS_ACCESS_KEY_ID = env.str("AWS_ACCESS_KEY_ID", default="")
-AWS_SECRET_ACCESS_KEY = env.str("AWS_SECRET_ACCESS_KEY", default="")
-AWS_STORAGE_BUCKET_NAME = env.str("AWS_STORAGE_BUCKET_NAME", default="")
-AWS_S3_CUSTOM_DOMAIN = env.str("AWS_S3_CUSTOM_DOMAIN", default="")
-AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
 
 STORAGES = {
     "default": {
-        "BACKEND": env.str(
-            "DJANGO_DEFAULT_STORAGE_BACKEND",
-            default="django.core.files.storage.FileSystemStorage",
-        ),
+        "BACKEND": "django.core.files.storage.FileSystemStorage"
     },
     "staticfiles": {
-        "BACKEND": env.str(
-            "DJANGO_STATICFILES_BACKEND",
-            default="django.contrib.staticfiles.storage.StaticFilesStorage",
-        ),
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
     },
 }
 
@@ -282,7 +263,7 @@ STORAGES = {
 # advance of it being deployed. For browsing log files https://lnav.org
 # is a great tool.
 
-LOG_LEVEL = env.str("DJANGO_LOG_LEVEL", default="INFO")
+LOG_LEVEL = env.str("DJANGO_LOG_LEVEL")
 
 if LOG_LEVEL not in ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"):
     raise ImproperlyConfigured("Unknown level for logging: " + LOG_LEVEL)
@@ -331,14 +312,6 @@ if DSN := env.str("DJANGO_SENTRY_DSN", default=""):
             CeleryIntegration(),
         ],
     )
-
-# #########
-#   EMAIL
-# #########
-
-vars().update(env.email("DJANGO_EMAIL_URL", default="consolemail://"))
-
-EMAIL_USE_SSL = env.bool("DJANGO_EMAIL_USE_SSL", default="True")
 
 # Move the Django Admin to somewhere obscure. This more about reducing
 # the load on the server, created by break-in attempts and very little

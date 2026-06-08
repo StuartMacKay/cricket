@@ -5,44 +5,38 @@ x-app: &default-app
     args:
       - "UID=${UID:-1000}"
       - "GID=${GID:-1000}"
-      - "DEBUG=${DEBUG:-false}"
-      - "DJANGO_ENV=${DJANGO_ENV:-development}"
   depends_on:
     redis:
       condition: "service_started"
       required: false
-  env_file:
-    - ".env"
   environment:
-    # Override the defaults in .env which are for natively installed services
-    BROKER_URL: "${BROKER_URL-redis://redis:6379/1}"
-    CACHE_URL: "${CACHE_URL-redis://redis:6379/0}"
-    DATABASE_URL: "${DATABASE_URL-sqlite:////data/db.sqlite3}"
+    DJANGO_ENV: ${DJANGO_ENV}
+    DJANGO_DEBUG: ${DJANGO_DEBUG}
+    DJANGO_LOG_LEVEL: ${DJANGO_LOG_LEVEL}
+    DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+    DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+    CRICKET_API_KEY: ${CRICKET_API_KEY}
   init: true
-  restart: "${DOCKER_RESTART_POLICY:-no}"
+  restart: "unless-stopped"
   tty: true
 
 services:
   redis:
     image: "redis:7.2"
-    ports:
-      - "${DOCKER_REDIS_PORT_FORWARD-127.0.0.1:6379}:6379"
-    restart: "${DOCKER_RESTART_POLICY:-no}"
+    restart: "unless-stopped"
     volumes:
       - "redisdata:/data"
 
   django:
     <<: *default-app
     healthcheck:
-      test: "${DOCKER_DJANGO_HEALTHCHECK_TEST:-curl localhost:8000/watchman/ping}"
+      test: "curl localhost:8000/watchman/ping"
       interval: "60s"
       timeout: "3s"
-      start_period: "5s"
+      start_period: "30s"
       retries: 3
-    ports:
-      - "${DOCKER_DJANGO_PORT_FORWARD-127.0.0.1:8000}:8000"
     volumes:
-      - "data:/data"
+      - "data:/app/data"
       - "media:/app/media"
       - "static:/app/static"
 
@@ -53,7 +47,7 @@ services:
       django:
         condition: "service_started"
         required: false
-    entrypoint: []
+    entrypoint: null
 
   celery-worker:
     <<: *default-app
@@ -62,21 +56,10 @@ services:
       django:
         condition: "service_started"
         required: false
-    entrypoint: []
+    entrypoint: null
     volumes:
-      - "data:/data"
+      - "data:/app/data"
       - "media:/app/media"
-
-  flower:
-    <<: *default-app
-    command: celery -A config flower
-    depends_on:
-      django:
-        condition: "service_started"
-        required: false
-    entrypoint: []
-    ports:
-      - "${DOCKER_FLOWER_PORT_FORWARD-127.0.0.1:5555}:5555"
 
 volumes:
   data:
