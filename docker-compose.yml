@@ -1,3 +1,12 @@
+x-app-environment: &app-environment
+  DJANGO_ENV:
+  DJANGO_SECRET_KEY:
+  DJANGO_ALLOWED_HOSTS:
+  DJANGO_WATCHMAN_TOKENS:
+  DJANGO_DEBUG:
+  DJANGO_LOG_LEVEL:
+  DJANGO_SENTRY_DSN:
+
 x-app: &default-app
   build:
     context: "."
@@ -9,12 +18,7 @@ x-app: &default-app
     redis:
       condition: "service_started"
       required: false
-  environment:
-    DJANGO_ENV: ${DJANGO_ENV}
-    DJANGO_DEBUG: ${DJANGO_DEBUG}
-    DJANGO_LOG_LEVEL: ${DJANGO_LOG_LEVEL}
-    DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
-    DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+  environment: *app-environment
   init: true
   restart: "unless-stopped"
   tty: true
@@ -22,12 +26,21 @@ x-app: &default-app
 services:
   redis:
     image: "redis:7.2"
+    command: "redis-server --appendonly yes"
     restart: "unless-stopped"
     volumes:
       - "redisdata:/data"
 
   django:
     <<: *default-app
+    environment:
+      <<: *app-environment
+      GUNICORN_NUMBER_OF_WORKERS:
+      GUNICORN_NUMBER_OF_THREADS:
+      GUNICORN_MAX_REQUESTS:
+      GUNICORN_TIMEOUT:
+      GUNICORN_RELOAD:
+      GUNICORN_LOG_LEVEL:
     healthcheck:
       test: "curl localhost:8000/watchman/ping"
       interval: "60s"
@@ -41,7 +54,7 @@ services:
 
   celery-beat:
     <<: *default-app
-    command: celery -A config beat --loglevel "${CELERY_LOG_LEVEL:-debug}"
+    command: celery -A config beat --loglevel "${CELERY_LOG_LEVEL:-warning}"
     depends_on:
       django:
         condition: "service_started"
@@ -50,7 +63,7 @@ services:
 
   celery-worker:
     <<: *default-app
-    command: celery -A config worker --loglevel "${CELERY_LOG_LEVEL:-debug}" -Q sites,pages
+    command: celery -A config worker --loglevel "${CELERY_LOG_LEVEL:-warning}" -Q sites,pages
     depends_on:
       django:
         condition: "service_started"

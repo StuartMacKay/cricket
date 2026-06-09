@@ -29,11 +29,13 @@ services:
         condition: "service_started"
         required: false
     environment:
-      DJANGO_ENV: ${DJANGO_ENV}
-      DJANGO_DEBUG: ${DJANGO_DEBUG}
-      DJANGO_LOG_LEVEL: ${DJANGO_LOG_LEVEL}
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+      - DJANGO_ENV
+      - DJANGO_SECRET_KEY
+      - DJANGO_ALLOWED_HOSTS
+      - DJANGO_WATCHMAN_TOKENS
+      - DJANGO_DEBUG
+      - DJANGO_LOG_LEVEL
+      - DJANGO_SENTRY_DSN
     command: celery -A config flower
     ports:
       - "5555:5555"

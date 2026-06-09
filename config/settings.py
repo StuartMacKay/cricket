@@ -33,7 +33,7 @@ if DJANGO_ENV not in ("development", "production"):
         "Unknown environment name for settings: '%s'" % DJANGO_ENV
     )
 
-DEBUG = env.bool("DJANGO_DEBUG")
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
 
 if DJANGO_ENV == "production" and DEBUG:
     raise ImproperlyConfigured("'DEBUG = True' is not allowed in production")
@@ -84,7 +84,7 @@ ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-WATCHMAN_TOKENS = env.str("DJANGO_WATCHMAN_TOKENS", None)
+WATCHMAN_TOKENS = env.str("DJANGO_WATCHMAN_TOKENS")
 
 # ############
 #   DATABASE
@@ -206,20 +206,7 @@ USE_TZ = True
 #   STATIC AND MEDIA FILES
 # ##########################
 # Static files are ALWAYS served from the local filesystem, whether in
-# development or production. Serving files from a CDN such as CloudFront
-# is then simply a matter of setting DJANGO_STATIC_HOST to the CloudFront
-# domain. Media files can be served from local, network or remote storage
-# according to the scale of the deployment. Most articles describing how
-# to configure Django to use Amazon's S3 service start with serving up
-# static files. If you do that with when using whitenoise then you lose
-# the ability to create a manifest or compress the files. They are simply
-# copied out to the S3 Bucket and served from there. In addition, serving
-# static files from the local filesystem solves a problem when you have
-# multiple servers with a load balancer. At some point during a deployment
-# collectstatic needs to be run, but unless you designate one of the
-# servers as the one responsible for doing it, they will either all
-# compete to upload the files to remote storage, possibly corrupting the
-# files, or you'll end up doing the uploads multiple times.
+# development or production. There are not that many.
 
 STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
@@ -254,7 +241,7 @@ STORAGES = {
 # advance of it being deployed. For browsing log files https://lnav.org
 # is a great tool.
 
-LOG_LEVEL = env.str("DJANGO_LOG_LEVEL")
+LOG_LEVEL = env.str("DJANGO_LOG_LEVEL", "INFO")
 
 if LOG_LEVEL not in ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"):
     raise ImproperlyConfigured("Unknown level for logging: " + LOG_LEVEL)
@@ -303,16 +290,6 @@ if DSN := env.str("DJANGO_SENTRY_DSN", default=""):
             CeleryIntegration(),
         ],
     )
-
-# Move the Django Admin to somewhere obscure. This more about reducing
-# the load on the server, created by break-in attempts and very little
-# to do with security. You can deploy something like django-admin-honeypot
-# at the regular /admin/ path and ban persistent offenders, though that
-# is likely to be a never-ending task.
-ADMIN_PATH = env.str("DJANGO_ADMIN_PATH", default="admin/")
-
-if ADMIN_PATH[-1] != "/":
-    ADMIN_PATH += "/"
 
 # #####################
 #   DJANGO EXTENSIONS

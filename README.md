@@ -151,30 +151,33 @@ All variables have working defaults for local development. `make develop`
 copies `.env.example` to `.env` automatically — uncomment only what you need
 to change.
 
-`BROKER_URL`, `CACHE_URL`, and `DATABASE_URL` are **not** set here — they are
-fixed inside `docker-compose.yml` using container-internal hostnames. Overriding
-them in `.env` would break inter-service communication.
+**Required in development and production:**
 
-**Required in production:**
-
-| Variable | Purpose |
-|---|---|
-| `DJANGO_ENV` | Set to `production` |
-| `DJANGO_DEBUG` | Set to `False` (startup fails in production if `True`) |
-| `DJANGO_SECRET_KEY` | Secret key — startup fails if unset in production |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated permitted hostnames |
-| `DOCKER_RESTART_POLICY` | Set to `unless-stopped` |
+| Variable                 | Purpose                                                 |
+|--------------------------|---------------------------------------------------------|
+| `DJANGO_ENV`             | Set to `development` to `production`                    |
+| `DJANGO_SECRET_KEY`      | Secret key — can be any string for development          |
+| `DJANGO_ALLOWED_HOSTS`   | Comma-separated permitted hostnames                     |
+| `DJANGO_WATCHMAN_TOKENS` | Protect the health check endpoint; comma-separated list |
 
 **Optional:**
 
-| Variable | Purpose |
-|---|---|
-| `DJANGO_ADMIN_PATH` | Move admin to a non-standard path |
-| `DJANGO_WATCHMAN_TOKENS` | Protect the health check endpoint |
-| `GUNICORN_NUMBER_OF_WORKERS` | Worker processes; default 1, increase in production |
-| `DJANGO_LOG_LEVEL` | Log verbosity; default `INFO` |
-| `DJANGO_SENTRY_DSN` | Sentry error tracking |
-| `DJANGO_EMAIL_URL` | Email backend; default sends to console |
-| `AWS_ACCESS_KEY_ID` etc. | S3-compatible storage for media files |
-| `DJANGO_STATIC_HOST` | CDN domain for static files |
-| `CRICKET_API_KEY` | Dev API key written by `make apikey` — use as `Authorization: Bearer <key>` |
+| Variable            | Purpose                                                                       |
+|---------------------|-------------------------------------------------------------------------------|
+| `DJANGO_DEBUG`      | Enable debugging; defaults to `False` (startup fails in production if `True`) |
+| `DJANGO_LOG_LEVEL`  | Log verbosity; defaults to `INFO`                                             |
+| `DJANGO_SENTRY_DSN` | Sentry error tracking; defaults to empty string, disabling Sentry             |
+| `CELERY_LOG_LEVEL`  | Log verbosity for Celery; defaults to `warning`                               |
+
+**Gunicorn:**
+
+The default values for configuring gunicorn are sufficient for development only.
+
+| Variable                     | Purpose                                                                                                 |
+|------------------------------|---------------------------------------------------------------------------------------------------------|
+| `GUNICORN_NUMBER_OF_WORKERS` | Worker processes; default 1, increase in production: 2 * cpus + 1                                       |
+| `GUNICORN_NUMBER_OF_THREADS` | Threads per worker processes; default 1, increase in production                                         |
+| `GUNICORN_MAX_REQUESTS`      | Number of requests before restarting worker: 0 in development (disabled); 1000 or similar in production |
+| `GUNICORN_TIMEOUT`           | Number of seconds before request times out. default = 3                                                 |
+| `GUNICORN_RELOAD`            | Restart worker on code change: True for development; False for production                               |
+| `GUNICORN_LOG_LEVEL`         | Log verbosity; defaults to `debug`                                                                      |

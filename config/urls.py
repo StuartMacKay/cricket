@@ -10,8 +10,7 @@ urlpatterns = [
 
 
 urlpatterns += [
-    # Change the path to the Django Admin to something non-standard.
-    path(settings.ADMIN_PATH, admin.site.urls),  # type: ignore
+    path('admin/', admin.site.urls),  # type: ignore
 ]
 
 urlpatterns += [

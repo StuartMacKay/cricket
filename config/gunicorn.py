@@ -3,7 +3,7 @@ import environ  # type: ignore
 env = environ.Env()
 
 # The port or socket to bind on
-bind = env.str("GUNICORN_BIND", "0.0.0.0:8000")
+bind = "0.0.0.0:8000"
 
 # Log everything to stdout
 accesslog = "-"
