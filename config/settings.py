@@ -148,8 +148,12 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_SECURE = True
 # Tell the browser not to allow access to the cookie via javascript.
 SESSION_COOKIE_HTTPONLY = True
+# Prevent the session cookie from being sent in cross-site requests.
+SESSION_COOKIE_SAMESITE = "Strict"
 # Don't send the CSRF cookie unless the connection is secure.
 CSRF_COOKIE_SECURE = True
+# Prevent the CSRF cookie from being sent in cross-site requests.
+CSRF_COOKIE_SAMESITE = "Strict"
 
 # #############
 #   TEMPLATES
