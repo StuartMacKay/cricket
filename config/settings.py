@@ -134,8 +134,8 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
 
-# Basic security settings. We're not going to deal with HSTS settings, at least
-# for now since there is nothing that specifically needs protecting.
+# Basic security settings.
+# HSTS headers will be configured in production using Traefik.
 
 # Redirect HTTP requests to HTTPS, but only in production
 SECURE_SSL_REDIRECT = DJANGO_ENV == "production"
