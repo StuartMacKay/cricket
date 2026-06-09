@@ -43,19 +43,18 @@ app.conf.task_default_queue = "pages"
 # of their due time.
 app.conf.beat_schedule = {
     "check-overdue-jobs": {
-        "task": "sites.tasks.check_overdue_jobs",
+        "task": "audits.tasks.overdue_jobs",
         "schedule": crontab(minute="*/5"),
     },
 }
 
 app.conf.task_routes = {
-    "sites.tasks.check_overdue_jobs":         {"queue": "sites"},
-    "lighthouse.tasks.take_lighthouse_run":   {"queue": "sites"},
-    "lighthouse.tasks.complete_run":          {"queue": "sites"},
-    "headers.tasks.take_header_run":          {"queue": "sites"},
-    "headers.tasks.complete_run":             {"queue": "sites"},
-    "pageweight.tasks.take_weight_run":       {"queue": "sites"},
-    "pageweight.tasks.complete_run":          {"queue": "sites"},
+    "audits.tasks.overdue_jobs": {"queue": "sites"},
+    "audits.tasks.job_run": {"queue": "sites"},
+    "audit.tasks.audit_page": {"queue": "pages"},
+    "audit.tasks.page_headers": {"queue": "pages"},
+    "audit.tasks.page_weights": {"queue": "pages"},
+    "audits.tasks.lighthouse_audit": {"queue": "pages"},
 }
 
 
