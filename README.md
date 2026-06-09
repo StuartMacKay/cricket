@@ -39,8 +39,15 @@ make develop
 ```
 
 `make develop` installs pre-commit hooks, copies `.env.example` to `.env`,
+copies `docker-compose.override.yml.example` to `docker-compose.override.yml`,
 starts the Docker stack, runs migrations, and seeds a demo admin account,
 site, job, and API key. The API key is printed at the end.
+
+`docker-compose.override.yml` configures the local development stack: it
+mounts your source tree into the containers, exposes ports, and targets the
+`dev` image stage so code changes are picked up without a rebuild. Edit it to
+customise your local environment — Docker Compose merges it automatically with
+`docker-compose.yml`, and it is git-ignored so your changes stay local.
 
 - Admin: <http://localhost:8000/admin/> — `admin` / `password`
 - Flower: <http://localhost:5555>

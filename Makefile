@@ -64,12 +64,16 @@ setup:
 .env:
 	cp .env.example .env
 
+# Creates a local docker-compose.override.yml from the example only if one does not already exist.
+docker-compose.override.yml:
+	cp docker-compose.override.yml.example docker-compose.override.yml
+
 # Spin up the full development environment from a fresh checkout.
 # After this runs, the app is at http://localhost:8000 and the API key
 # is printed at the end. Targets that generate values are skipped when
 # the corresponding variable is already set in .env.
 .PHONY: develop
-develop: setup .env up migrate admin demo
+develop: setup .env docker-compose.override.yml up migrate admin demo
 	@grep -q '^export DJANGO_SECRET_KEY=' .env || $(MAKE) --no-print-directory secretkey
 	@echo ""
 	@echo "---"
